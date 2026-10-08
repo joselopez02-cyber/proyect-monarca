@@ -1,0 +1,52 @@
+<section id="view-peliculas" class="view-section">
+      <div class="section-header">
+        <div class="section-title"><h2>Catálogo de Películas</h2><p>Administra y edita los títulos disponibles en tu cine.</p></div>
+      </div>
+      <div class="card mb-3">
+        <div class="flex-between mb-2">
+          <h4 style="font-family: var(--f-body); font-weight: 600; font-size: 14px;" id="lbl-form-pelicula">Registrar Nuevo Título</h4>
+        </div>
+        <form id="formPelicula" style="display:grid; grid-template-columns:1fr 1fr 1fr 200px; grid-template-rows:auto auto auto; grid-template-areas:'titulo genero duracion poster' 'desc desc clasif poster' 'btns btns btns poster'; gap:12px; align-items:start;">
+          <input type="hidden" id="p_id">
+          <div class="input-group" style="margin:0;grid-area:titulo"><label>Título</label><input type="text" id="p_titulo" required=""></div>
+          <div class="input-group" style="margin:0;grid-area:genero"><label>Género principal</label><input type="text" id="p_genero" placeholder="Ej: Ciencia Ficción" required=""></div>
+          <div class="input-group" style="margin:0;grid-area:duracion"><label>Duración (min)</label><input type="number" id="p_duracion" required="" min="1"></div>
+          <div class="input-group" style="margin:0;grid-area:clasif">
+            <label>Clasificación</label>
+            <select id="p_clasif">
+              <option value="A">A - Todo Público</option>
+              <option value="B">B - +12 Años</option>
+              <option value="B15">B15 - +15 Años</option>
+              <option value="C">C - Adultos</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin:0;grid-area:desc">
+            <label>Descripción</label>
+            <textarea id="p_desc" rows="6" style="resize:vertical;font-family:var(--f-body);font-size:13px;" placeholder="Sinopsis de la película..."></textarea>
+          </div>
+          <div style="margin:0;grid-area:poster;display:flex;flex-direction:column;gap:6px;">
+            <label style="font-size:11px;font-weight:600;letter-spacing:.05em;color:var(--c-muted);">POSTER</label>
+            <div id="posterDropzone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handlePosterDrop(event)">
+              <div id="posterPreview">
+                <div style="font-size:28px;margin-bottom:4px;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--c-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></div>
+                <div style="font-size:12px;margin-bottom:10px;color:var(--c-muted);">JPG · PNG · WEBP · GIF</div>
+                <button type="button" onclick="document.getElementById('posterFileInput').click()" style="background:var(--c-gold);color:#07070f;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;">Elegir archivo</button>
+                <div style="font-size:10px;margin-top:6px;color:var(--c-muted);">o arrastra aquí</div>
+              </div>
+            </div>
+            <input type="file" id="posterFileInput" accept=".jpg,.jpeg,.png,.webp,.gif,.bmp,.tiff,.avif,image/*" style="display:none" onchange="handlePosterFile(this)">
+            <button type="button" id="btn-clear-poster" class="poster-del-btn" style="display:none" onclick="limpiarPosterForm()">🗑 Quitar poster</button>
+          </div>
+          <div style="grid-area:btns;display:flex;justify-content:flex-end;margin-top:4px;gap:8px;">
+            <button type="button" class="btn" id="btn-cancel-p" style="display:none;" onclick="cancelarEdicionPelicula()">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-p">Guardar Película</button>
+          </div>
+        </form>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>ID</th><th>Poster</th><th>Título</th><th>Género</th><th>Duración</th><th>Clasificación</th><th>Acciones</th></tr></thead>
+          <tbody id="peliculasTable"></tbody>
+        </table>
+      </div>
+    </section>

@@ -1,0 +1,37 @@
+<aside class="sidebar">
+  <button id="mobile-nav-toggle" onclick="document.querySelector('.nav-menu').classList.toggle('open')" style="display:none;position:absolute;right:12px;top:10px;background:none;border:1px solid var(--c-border);color:var(--c-text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:18px;z-index:301">☰</button>
+  <div class="brand-header">
+    <div class="brand-icon">M</div>
+    <div>
+      <div class="brand-text" style="font-size: 20px; line-height: 1;">CINEMA MONARCA</div>
+      <div class="mono text-muted" style="font-size: 10px;">Cali • Admin Console</div>
+    </div>
+  </div>
+  <nav class="nav-menu">
+    <div class="nav-section-label">General</div>
+    <div class="nav-item active" data-view="dashboard" onclick="switchView('dashboard', this)">Panel Principal</div>
+    <div class="nav-item" data-view="cartelera" onclick="switchView('cartelera', this)">Taquilla</div>
+    <div class="nav-section-label" data-rol="ADMIN">Administración</div>
+    <div class="nav-item" data-view="peliculas" data-rol="ADMIN" onclick="switchView('peliculas', this)">Catálogo Películas</div>
+    <div class="nav-item" data-view="salas" data-rol="ADMIN" onclick="switchView('salas', this)">Programar Salas</div>
+    <div class="nav-item" data-view="funciones" data-rol="ADMIN" onclick="switchView('funciones', this)">Programar Funciones</div>
+    <div class="nav-section-label">Reportes</div>
+    <div class="nav-item" data-view="reservas" onclick="switchView('reservas', this)">Historial</div>
+    <div class="nav-item" data-view="sucursales" data-rol="ADMIN" onclick="switchView('sucursales', this)">Cines &amp;Sucursales</div>
+    <div class="nav-item" data-view="usuarios" data-rol="ADMIN" onclick="switchView('usuarios', this)">Gestión de Usuarios</div>
+    <div style="height: 24px;"></div>
+    <div class="nav-item" style="color: var(--c-red);" onclick="logout()">Cerrar Sesión</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar" id="sidebar-avatar-letter">?</div>
+      <div style="min-width:0;">
+        <div id="sidebar-username-label" style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+        <div id="sidebar-rol-label" style="font-size:10px;color:var(--c-muted);">—</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="switchView('config',null)">
+      <span style="font-size:10px;color:var(--c-muted);">⚙ Configuración</span>
+    </div>
+  </div>
+</aside>

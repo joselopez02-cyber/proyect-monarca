@@ -1,0 +1,42 @@
+<section id="view-salas" class="view-section">
+      <div class="section-header">
+        <div class="section-title"><h2>Programar Salas</h2><p>Define el nombre, tipo y distribución de cada sala.</p></div>
+        <button class="btn" onclick="cargarSalasAdmin()">↻ Actualizar</button>
+      </div>
+      <div class="card mb-3">
+        <h4 class="mb-2" style="font-family:var(--f-body);font-weight:600;font-size:14px" id="lbl-form-sala">Nueva Sala</h4>
+        <div class="grid-4" style="align-items:end;gap:12px">
+          <input type="hidden" id="s_id">
+          <div class="input-group" style="margin:0"><label>Nombre de la sala *</label><input type="text" id="s_nombre" placeholder="Ej: Sala 1, Sala VIP..."></div>
+          <div class="input-group" style="margin:0"><label>Tipo *</label><select id="s_tipo" onchange="calcularCapacidad()"><option value="">-- Tipo --</option><option value="PRO">PRO</option><option value="TRES_D">3D</option><option value="DOS_D">2D</option></select></div>
+          <div class="input-group" style="margin:0"><label>Filas (A, B, C…) *</label><input type="number" id="s_filas" min="1" max="26" value="5" oninput="calcularCapacidad()"></div>
+          <div class="input-group" style="margin:0"><label>Columnas por fila *</label><input type="number" id="s_columnas" min="1" max="30" value="10" oninput="calcularCapacidad()"></div>
+          <div class="input-group" style="margin:0"><label>Capacidad total (auto)</label><input type="number" id="s_capacidad" readonly="" style="opacity:0.6;cursor:not-allowed"></div>
+          <div class="input-group" style="margin:0"><label>Sucursal</label><select id="s_sucursal" required=""><option value="">-- Seleccionar sucursal --</option></select></div>
+          <div style="grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+            <button class="btn" id="btn-cancel-s" style="display:none" onclick="cancelarEdicionSala()">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveSala()">Guardar Sala</button>
+          </div>
+        </div>
+      </div>
+      <div id="sala-preview-wrap" style="display:none;margin-bottom:24px">
+        <div class="card">
+          <h4 style="font-family:var(--f-body);font-weight:600;font-size:13px;margin-bottom:12px;color:var(--c-gold)">Vista previa — <span id="sala-preview-label">Sala</span></h4>
+          <div style="text-align:center;margin-bottom:10px">
+            <div style="height:4px;background:linear-gradient(90deg,transparent,rgba(245,197,24,0.5),transparent);border-radius:50%;width:60%;margin:0 auto 6px"></div>
+            <span style="font-family:var(--f-mono);font-size:10px;color:rgba(245,197,24,0.5);letter-spacing:3px">PANTALLA</span>
+          </div>
+          <div id="sala-preview-grid"></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <label style="font-size:13px;color:var(--c-muted);white-space:nowrap;font-family:var(--f-body)"> Filtrar por sucursal:</label>
+        <select id="filtro-suc-salas" style="max-width:300px" onchange="filtrarTablaSalas()"><option value="">—Todas las sucursales —</option></select>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>ID</th><th>Nombre</th><th>Tipo</th><th>Filas</th><th>Columnas</th><th>Capacidad</th><th>Sucursal</th><th>Acciones</th></tr></thead>
+          <tbody id="salasTable"><tr><td colspan="8" class="empty-state">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
