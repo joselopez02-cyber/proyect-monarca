@@ -1,0 +1,19 @@
+{
+  "name": "monarca-backend",
+  "version": "1.0.0",
+  "description": "API de Cinema Monarca (Node.js + Express + PostgreSQL)",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:setup": "node scripts/setup-db.js",
+    "db:reset": "node scripts/setup-db.js --reset"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.6",
+    "express": "^5.2.1",
+    "pg": "^8.23.1"
+  }
+}
