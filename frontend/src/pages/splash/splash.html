@@ -1,0 +1,47 @@
+<div id="splashScreen" style="display:none;position:fixed;inset:0;z-index:9999;background:#07070f;flex-direction:column;align-items:center;justify-content:center;gap:0;">
+  <style>
+    @keyframes splashFadeIn  { from{opacity:0;transform:scale(0.85)} to{opacity:1;transform:scale(1)} }
+    @keyframes splashFadeOut { from{opacity:1} to{opacity:0} }
+    @keyframes splashGoldPulse {
+      0%,100%{text-shadow:0 0 0px rgba(245,197,24,0)}
+      50%{text-shadow:0 0 32px rgba(245,197,24,0.8), 0 0 64px rgba(245,197,24,0.4)}
+    }
+    @keyframes splashBarFill { from{width:0%} to{width:100%} }
+    @keyframes splashDots { 0%{content:''} 33%{content:'.'} 66%{content:'..'} 100%{content:'...'} }
+    #splashScreen.visible { display:flex !important; animation:splashFadeIn 0.5s ease forwards; }
+    #splashScreen.hiding  { animation:splashFadeOut 0.6s ease forwards; }
+    #splashLogo  { width:clamp(120px,25vw,180px); animation:splashFadeIn 0.6s 0.2s ease both; }
+    #splashTitle {
+      font-family:'Bebas Neue',sans-serif; font-size:clamp(32px,7vw,56px);
+      letter-spacing:6px; color:#f5c518; margin:18px 0 4px;
+      animation:splashFadeIn 0.6s 0.4s ease both, splashGoldPulse 2s 1s ease infinite;
+    }
+    #splashSub {
+      font-family:'Inter',sans-serif; font-size:13px;
+      color:rgba(255,255,255,0.35); letter-spacing:3px; text-transform:uppercase;
+      animation:splashFadeIn 0.6s 0.6s ease both; margin-bottom:40px;
+    }
+    #splashBarWrap {
+      width:clamp(200px,40vw,320px); height:3px;
+      background:rgba(255,255,255,0.07); border-radius:10px; overflow:hidden;
+      animation:splashFadeIn 0.4s 0.8s ease both;
+    }
+    #splashBar {
+      height:100%; width:0%;
+      background:linear-gradient(90deg,#e6b800,#f5c518,#ffe066);
+      border-radius:10px;
+    }
+    #splashMsg {
+      font-family:'JetBrains Mono',monospace; font-size:11px;
+      color:rgba(245,197,24,0.45); margin-top:14px; letter-spacing:1px;
+      animation:splashFadeIn 0.4s 1s ease both;
+    }
+    #splashMsg::after { content:''; animation:splashDots 1s 1.2s step-end infinite; }
+  </style>
+  <img id="splashLogo" src="mariposa.gif" alt="Monarca">
+  <div id="splashTitle">CINEMA MONARCA</div>
+  <div id="splashSub">Admin Console · Cali</div>
+  <div id="splashBarWrap"><div id="splashBar"></div></div>
+  <div id="splashMsg">Iniciando sistema</div>
+  <audio id="splashAudio" src="login-sound.mp3" preload="auto"></audio>
+</div>

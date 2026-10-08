@@ -1,0 +1,15 @@
+<section id="view-usuarios" class="view-section">
+      <div class="section-header">
+        <div class="section-title"><h2>Gestión de Usuarios</h2><p>Administra cuentas, roles y datos personales.</p></div>
+        <div style="display:flex;gap:10px">
+          <button class="btn" onclick="cargarUsuarios()">↻ Actualizar</button>
+          <button class="btn btn-primary" onclick="abrirModalNuevoUsuario()">+ Registrar Usuario</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Cédula</th><th>Teléfono</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbl-usuarios"><tr><td colspan="8" style="text-align:center;color:var(--c-muted)">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>

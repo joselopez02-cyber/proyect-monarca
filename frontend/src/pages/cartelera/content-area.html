@@ -1,0 +1,84 @@
+<div class="content-area">
+
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view-section active">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Resumen Operativo</h2>
+          <p>Estadísticas actuales conectadas a la base de datos de producción.</p>
+        </div>
+        <button class="btn" onclick="cargarDashboard()">↻ Actualizar</button>
+      </div>
+      <div class="grid-4 mb-3">
+        <div class="card"><div class="mono text-muted mb-1" style="font-size: 11px;">TÍTULOS ACTIVOS</div><h3 style="font-size: 36px; line-height: 1;" id="stat-pelis">-</h3></div>
+        <div class="card"><div class="mono text-muted mb-1" style="font-size: 11px;">FUNCIONES</div><h3 style="font-size: 36px; line-height: 1;" id="stat-funcs">-</h3></div>
+        <div class="card"><div class="mono text-muted mb-1" style="font-size: 11px;">CLIENTES REGISTRADOS</div><h3 style="font-size: 36px; line-height: 1;" id="stat-clis">-</h3></div>
+        <div class="card" style="border-color: rgba(245, 197, 24, 0.3);">
+          <div class="mono text-muted mb-1" style="font-size: 11px; color: var(--c-gold);">RESERVAS TOTALES</div>
+          <h3 style="font-size: 36px; line-height: 1; color: var(--c-gold);" id="stat-res">-</h3>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARTELERA / TAQUILLA -->
+    <section id="view-cartelera" class="view-section">
+      <!-- HEADER TAQUILLA -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:24px;">
+        <div>
+          <h2 style="font-size:28px;letter-spacing:2px;margin:0;line-height:1;"> Taquilla &amp; Ventas</h2>
+          <p style="color:var(--c-muted);font-size:13px;margin:6px 0 0;">Cartelera activa — selecciona una película para reservar entradas</p>
+        </div>
+        <button class="btn" onclick="cargarCartelera()" style="gap:8px;padding:9px 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38"></path></svg> Refrescar
+        </button>
+      </div>
+
+      <!-- BARRA DE BÚSQUEDA / FILTROS -->
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:24px;padding:16px 20px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);">
+        <div style="display:flex;align-items:center;gap:8px;flex:2;min-width:180px;background:rgba(255,255,255,0.04);border:1px solid var(--c-border2);border-radius:var(--radius-sm);padding:0 12px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(238,238,248,0.35)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+          <input type="text" id="fil_c_titulo" placeholder="Buscar película..." oninput="filtrarCartelera()" style="background:transparent;border:none;padding:10px 0;font-size:14px;box-shadow:none;width:100%;">
+        </div>
+        <div style="flex:1;min-width:150px;">
+          <select id="fil_c_genero_sel" onchange="document.getElementById('fil_c_genero').value=this.value;filtrarCartelera();" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;">
+            <option value="">Todos los géneros</option>
+            <option value="accion">Acción</option>
+            <option value="drama">Drama</option>
+            <option value="ciencia_ficcion">Ciencia Ficción</option>
+            <option value="animacion">Animación</option>
+            <option value="thriller">Thriller</option>
+            <option value="comedia">Comedia</option>
+          </select>
+          <input type="hidden" id="fil_c_genero">
+        </div>
+        <div style="flex:1;min-width:140px;">
+          <select id="fil_c_clasif" onchange="filtrarCartelera()" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;">
+            <option value="">Clasificación</option>
+            <option value="A">A — Todo Público</option>
+            <option value="B">B — +12 Años</option>
+            <option value="B15">B15 — +15 Años</option>
+            <option value="C">C — Adultos</option>
+          </select>
+        </div>
+        <button class="btn btn-sm" onclick="limpiarFiltrosCartelera()" style="align-self:stretch;padding:0 16px;border-color:rgba(229,57,53,0.25);color:var(--c-red);">✕ Limpiar</button>
+        <span id="fil_c_conteo" style="font-size:12px;color:var(--c-muted);align-self:center;white-space:nowrap;"></span>
+      </div>
+
+      <!-- STATS BAR -->
+      <div id="carteleraStats" style="display:none;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:8px 16px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="17" y1="7" x2="22" y2="7"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="2" y1="17" x2="7" y2="17"></line></svg></span>
+              <div id="stat_pelis_count" style="font-size:20px;font-family:var(--f-head);color:var(--c-gold);line-height:1;">0</div>
+            </div>
+          </div>
+          <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:8px 16px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></span>
+              <div id="stat_generos_count" style="font-size:20px;font-family:var(--f-head);color:var(--c-text);line-height:1;">0</div>
+            </div>
+          </div>
+          <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:8px 16px;display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
+              <div id="stat_funciones_count" style="font-size:20px;font-family:var(--f-head);color:var(--c-text);line-height:1;">0</div>
+            </div>
+          </section></div>

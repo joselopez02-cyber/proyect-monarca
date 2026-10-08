@@ -1,0 +1,34 @@
+<section id="view-sucursales" class="view-section">
+      <div class="section-header">
+        <div class="section-title"><h2>Cines &amp;Sucursales</h2><p>Gestiona la red de sedes y sus ubicaciones.</p></div>
+        <button class="btn" onclick="cargarSucursales()">↻ Actualizar</button>
+      </div>
+      <div class="card" style="margin-bottom:24px">
+        <h3 style="font-family:var(--f-head);font-size:18px;margin-bottom:16px;color:var(--c-gold)">+ NUEVO CINE</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="input-group"><label>Nombre del cine *</label><input type="text" id="cineNombre" placeholder="Cinema Monarca Norte"></div>
+          <div class="input-group"><label>Contacto / Teléfono</label><input type="text" id="cineCont" placeholder="3001234567"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:16px" onclick="crearCine()">Guardar Cine</button>
+      </div>
+      <div class="table-container" style="margin-bottom:24px">
+        <table>
+          <thead><tr><th>ID</th><th>Nombre del Cine</th><th>Contacto</th><th>Acciones</th></tr></thead>
+          <tbody id="tbl-cines"><tr><td colspan="4" style="text-align:center;color:var(--c-muted)">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card" style="margin-bottom:24px">
+        <h3 style="font-family:var(--f-head);font-size:18px;margin-bottom:16px;color:var(--c-gold)">+ NUEVA SUCURSAL</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="input-group"><label>Cine al que pertenece *</label><select id="sucCineId" style="background:var(--c-bg);color:var(--c-text);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:10px 12px;font-size:14px;width:100%"><option value="">— Seleccionar cine —</option></select></div>
+          <div class="input-group"><label>Ubicación / Dirección *</label><input type="text" id="sucUbicacion" placeholder="Cra 5 # 10-20, Cali"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:16px" onclick="crearSucursal()">GuardarSucursal</button>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>ID</th><th>Ubicación</th><th>Cine</th><th>Salas</th><th>Acciones</th></tr></thead>
+          <tbody id="tbl-sucursales"><tr><td colspan="5" style="text-align:center;color:var(--c-muted)">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>

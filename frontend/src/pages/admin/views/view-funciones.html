@@ -1,0 +1,122 @@
+<section id="view-funciones" class="view-section">
+      <div class="section-header">
+        <div class="section-title"><h2>Programar Funciones</h2><p>Asigna películas a salas, edita fechas y define precios.</p></div>
+        <button class="btn" onclick="cargarFunciones()">↻ Actualizar</button>
+      </div>
+      <div class="card mb-3">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <h4 style="font-family:var(--f-body);font-weight:600;font-size:14px;margin:0" id="lbl-form-funcion">Programar Nueva Función</h4>
+          <!-- Toggle modo único / rango -->
+          <div style="display:flex;background:var(--c-card);border:1px solid var(--c-border);border-radius:6px;overflow:hidden;">
+            <button type="button" id="btn-modo-unico" onclick="setModoFuncion('unico')" style="padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--f-body);cursor:pointer;border:none;background:var(--c-gold);color:var(--c-bg);transition:all 0.2s;"> Fecha Única
+            </button>
+            <button type="button" id="btn-modo-rango" onclick="setModoFuncion('rango')" style="padding:6px 16px;font-size:12px;font-weight:600;font-family:var(--f-body);cursor:pointer;border:none;border:1px solid rgba(245,197,24,0.3);background:transparent;color:var(--c-text);transition:all 0.2s;"> Por Rango
+            </button>
+          </div>
+        </div>
+
+        <form id="formFuncion" class="grid-4" style="align-items:end">
+          <input type="hidden" id="f_id">
+          <input type="hidden" id="f_modo" value="unico">
+
+          <!-- Campos comunes -->
+          <div class="input-group" style="margin:0"><label>Película</label><select id="f_peli" required=""></select></div>
+          <div class="input-group" style="margin:0"><label>Sucursal</label><select id="f_sucursal" onchange="filtrarSalasPorSucursal()"><option value="">—Todas —</option></select></div>
+          <div class="input-group" style="margin:0"><label>Sala</label><select id="f_sala" required=""><option value="">-- Selecciona sala --</option></select></div>
+          <div class="input-group" style="margin:0"><label>Precio Entrada (COP)</label><input type="number" id="f_precio" value="18000" step="500" required=""></div>
+
+          <!-- MODO ÚNICO -->
+          <div id="bloque-unico" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end;">
+            <div class="input-group" style="margin:0"><label>Fecha y Hora</label><input type="datetime-local" id="f_fecha"></div>
+          </div>
+
+          <!-- MODO RANGO -->
+          <div id="bloque-rango" style="grid-column:1/-1;display:none;flex-direction:column;gap:14px;">
+            <!-- Fila 1: fechas + hora -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end;">
+              <div class="input-group" style="margin:0">
+                <label> Fecha Inicio *</label>
+                <input type="date" id="f_rango_desde" oninput="calcularRangoPreview()">
+              </div>
+              <div class="input-group" style="margin:0">
+                <label> Fecha Fin *</label>
+                <input type="date" id="f_rango_hasta" oninput="calcularRangoPreview()">
+              </div>
+              <div style="grid-column:1/-1" class="input-group">
+                <label style="display:block;margin-bottom:8px;"> Horarios de función <span id="rango_horas_count" style="color:var(--c-gold);font-family:var(--f-mono);font-size:11px;margin-left:6px;"></span></label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;" id="rango-horarios-wrap">
+                  <!-- injected by JS -->
+                </div>
+              </div>
+              <div class="input-group" style="margin:0">
+                <label> Vista previa</label>
+                <div id="rango_preview" style="padding:9px 12px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:4px;font-size:12px;color:var(--c-muted);font-family:var(--f-mono);">
+                  — días generados
+                </div>
+              </div>
+            </div>
+            <!-- Fila 2: días de la semana -->
+            <div>
+              <label style="display:block;font-size:12px;color:var(--c-muted);margin-bottom:8px;font-weight:500;"> Repetir en días (opcional — vacío = todos los días)</label>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;" id="dias-semana-wrap">
+                <label class="dia-chip" data-dia="1" onclick="toggleDiaChip(this)"><input type="checkbox" value="1"> Lun</label>
+                <label class="dia-chip" data-dia="2" onclick="toggleDiaChip(this)"><input type="checkbox" value="2"> Mar</label>
+                <label class="dia-chip" data-dia="3" onclick="toggleDiaChip(this)"><input type="checkbox" value="3"> Mié</label>
+                <label class="dia-chip" data-dia="4" onclick="toggleDiaChip(this)"><input type="checkbox" value="4"> Jue</label>
+                <label class="dia-chip" data-dia="5" onclick="toggleDiaChip(this)"><input type="checkbox" value="5"> Vie</label>
+                <label class="dia-chip" data-dia="6" onclick="toggleDiaChip(this)"><input type="checkbox" value="6"> Sáb</label>
+                <label class="dia-chip" data-dia="0" onclick="toggleDiaChip(this)"><input type="checkbox" value="0"> Dom</label>
+              </div>
+            </div>
+          </div>
+
+          <div style="grid-column:1/-1;display:flex;justify-content:flex-end;margin-top:8px;gap:8px;align-items:center;">
+            <span id="rango_conteo_badge" style="display:none;font-size:12px;color:var(--c-muted);font-family:var(--f-mono);"></span>
+            <button type="button" class="btn" id="btn-cancel-f" style="display:none" onclick="cancelarEdicionFuncion()">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-f">Publicar Función</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Barra de progreso para publicación en rango -->
+      <div id="rango-progress-wrap" style="display:none;margin-bottom:16px;">
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--radius);padding:16px 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:13px;font-weight:600;" id="rango-progress-label">Publicando funciones…</span>
+            <span class="mono text-gold" style="font-size:13px;" id="rango-progress-count">0/0</span>
+          </div>
+          <div style="height:6px;background:var(--c-border);border-radius:3px;overflow:hidden;">
+            <div id="rango-progress-bar" style="height:100%;width:0%;background:var(--c-gold);border-radius:3px;transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding:12px 14px;background:var(--c-card);border:1px solid var(--c-border);border-radius:var(--radius);align-items:center;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--c-muted);">Sucursal</span>
+          <select id="fil_f_sucursal" onchange="filtrarTablaFunciones()" style="font-size:12px;padding:5px 8px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;color:var(--c-text);"><option value="">—Todas —</option></select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--c-muted);"> Película</span>
+          <select id="fil_f_peli" onchange="filtrarTablaFunciones()" style="font-size:12px;padding:5px 8px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;color:var(--c-text);"><option value="">—Todas —</option></select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--c-muted);"> Sala</span>
+          <select id="fil_f_sala" onchange="filtrarTablaFunciones()" style="font-size:12px;padding:5px 8px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;color:var(--c-text);"><option value="">—Todas —</option></select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--c-muted);">Desde</span>
+          <input type="date" id="fil_f_desde" onchange="filtrarTablaFunciones()" style="font-size:12px;padding:4px 8px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;color:var(--c-text);cursor:pointer;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--c-muted);">Hasta</span>
+          <input type="date" id="fil_f_hasta" onchange="filtrarTablaFunciones()" style="font-size:12px;padding:4px 8px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:6px;color:var(--c-text);cursor:pointer;">
+        </div>
+        <button class="btn btn-sm" onclick="limpiarFiltrosFunciones()" style="font-size:12px;">Limpiar</button>
+        <div id="batch_actions" style="display:none;margin-left:auto;align-items:center;gap:8px;flex:0 0 auto;">
+          <span id="batch_count" style="font-size:12px;color:var(--c-muted);"></span>
+          <button class="btn btn-sm btn-danger" onclick="eliminarSeleccionadas()">🗑 Eliminar seleccionadas</button>
+        </div>
+        <span id="fil_f_conteo" style="font-size:12px;color:var(--c-muted);margin-left:auto;"></span>
+      </div>
+      <div id="funcionesAgrupadas"></div>
+    </section>

@@ -1,0 +1,61 @@
+<section id="view-reservas" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Historial de Ventas</h2>
+          <p>Registro de todas las transacciones y emisiones de tiquetes.
+            <span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;background:rgba(245,197,24,0.1);border:1px solid rgba(245,197,24,0.3);border-radius:20px;padding:2px 10px;font-size:10px;font-weight:700;color:var(--c-gold);letter-spacing:0.5px;vertical-align:middle;"> PAGOS SIMULADOS
+            </span>
+          </p>
+        </div>
+        <button class="btn" onclick="cargarReservas()">↻ Actualizar</button>
+      </div>
+      <div class="card mb-3" style="padding:14px 16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div class="input-group" style="margin:0;min-width:140px;flex:1"><label>Sucursal</label><select id="filtro-res-suc" onchange="filtrarReservas()"><option value="">—Todas —</option></select></div>
+          <div class="input-group" style="margin:0;min-width:180px;flex:2"><label> Película</label><input type="text" id="filtro-res-nombre" placeholder="Buscar por película..." oninput="filtrarReservas()"></div>
+          <div class="input-group" style="margin:0;min-width:130px;flex:1"><label> Género</label><select id="filtro-res-genero" onchange="filtrarReservas()"><option value="">— Todos —</option></select></div>
+          <div class="input-group" style="margin:0;min-width:130px;flex:1"><label>Clasificación</label><select id="filtro-res-clasif" onchange="filtrarReservas()"><option value="">—Todas —</option></select></div>
+          <div class="input-group" style="margin:0;min-width:130px;flex:1">
+            <label> Estado</label>
+            <select id="filtro-res-estado" onchange="filtrarReservas()">
+              <option value="">— Todos —</option>
+              <option value="CONFIRMADA">Confirmada</option>
+              <option value="CANCELADA">Cancelada</option>
+              <option value="PENDIENTE">Pendiente</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin:0;min-width:130px;flex:1">
+            <label> Método Pago</label>
+            <select id="filtro-res-metodo" onchange="filtrarReservas()">
+              <option value="">— Todos —</option>
+              <option value="TARJETA_CREDITO"> Tarjeta Crédito</option>
+              <option value="TARJETA_DEBITO"> Tarjeta Débito</option>
+              <option value="NEQUI"> Nequi</option>
+              <option value="PSE"> PSE</option>
+              
+            </select>
+          </div>
+          <div style="display:flex;align-items:flex-end;flex-shrink:0;">
+            <button class="btn" style="font-size:12px;white-space:nowrap" onclick="limpiarFiltrosReservas()">Limpiar</button>
+          </div>
+        </div>
+      </div>
+      <div id="res-contador" style="font-size:12px;color:var(--c-muted);margin-bottom:8px;font-family:var(--f-body)"></div>
+      <div class="table-container">
+        <table style="min-width:860px">
+          <thead><tr>
+            <th style="white-space:nowrap">Ticket #</th>
+            <th style="white-space:nowrap">Acción</th>
+            <th style="white-space:nowrap">Fecha Op.</th>
+            <th>Cliente</th>
+            <th>Película</th>
+            <th style="white-space:nowrap">Sala /Sucursal</th>
+            <th>Sillas</th>
+            <th style="white-space:nowrap">Total (COP)</th>
+            <th>Método</th>
+            <th>Estado</th>
+          </tr></thead>
+          <tbody id="reservasTable"></tbody>
+        </table>
+      </div>
+    </section>

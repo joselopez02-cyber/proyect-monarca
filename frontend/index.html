@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:,">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cinema Monarca — App Producción</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <!-- Global Toasts -->
+  <div id="toast-container" style="position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px;"></div>
+  
+  <!-- Root Container for Navigo Router -->
+  <div id="root"></div>
+
+  <!-- Global Modals (Left here temporarily to avoid breaking JS) -->
+  <div id="modals-container">
+    <div id="modalSillas" style="display:none;position:fixed;inset:0;background:rgba(10,10,15,.85);backdrop-filter:blur(4px);z-index:3000;align-items:center;justify-content:center">
+  <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-lg);max-width:540px;width:95%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.7);max-height:90vh;display:flex;flex-direction:column;">
+    <div style="background:linear-gradient(135deg,rgba(245,197,24,.12),transparent);border-bottom:1px solid var(--c-border);padding:16px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:24px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--c-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"></path><line x1="9" y1="12" x2="15" y2="12"></line></svg></span>
+        <div>
+          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+            <div style="font-family:var(--f-head);font-size:22px;color:var(--c-gold);line-height:1;" id="ms_titulo">TK-—</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.75);font-weight:600;" id="ms_cli_header">—</div>
+          </div>
+          <div class="mono text-muted" style="font-size:11px;margin-top:2px;" id="ms_sub">—</div>
+        </div>
+      </div>
+      <button onclick="document.getElementById('modalSillas').style.display='none'" style="background:transparent;border:none;color:var(--c-muted);font-size:20px;cursor:pointer;padding:4px 8px;">✕</button>
+    </div>
+    <div style="padding:16px 22px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">
+      <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:8px;padding:12px 14px;">
+        <div style="font-size:10px;color:var(--c-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;"> Función</div>
+        <div style="font-weight:700;font-size:15px;" id="ms_pelicula">—</div>
+        <div style="font-size:12px;color:var(--c-muted);margin-top:2px;" id="ms_funcion_info">—</div>
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;" id="ms_mapa"></div>
+      </div>
+      <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:8px;padding:12px 14px;">
+        <div style="font-size:10px;color:var(--c-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;"> Cliente</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;">
+          <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Nombre</div><div style="font-weight:600;" id="ms_cli_nombre">—</div></div>
+          <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Nombre Completo</div><div style="font-weight:600;color:var(--c-gold);" id="ms_cli_nombreCompleto">—</div></div>
+          <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Cédula</div><div class="mono" id="ms_cli_cedula">—</div></div>
+          <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Teléfono</div><div id="ms_cli_tel">—</div></div>
+          <div style="grid-column:1/-1"><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Dirección</div><div id="ms_cli_dir">—</div></div>
+        </div>
+      </div>
+      <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <div>
+          <div style="font-size:10px;color:var(--c-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;"> Método de Pago</div>
+          <div id="ms_metodo_wrap"><span style="color:var(--c-muted);font-size:13px;font-style:italic;">—</span></div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;color:var(--c-muted);margin-bottom:4px;">TOTAL</div>
+          <div style="font-family:var(--f-head);font-size:26px;color:var(--c-gold);" id="ms_total">$0</div>
+          <div id="ms_estado_wrap" style="margin-top:4px;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 22px;border-top:1px solid var(--c-border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px;">
+      <div id="ms_btn_anular_wrap"></div>
+      <button class="btn btn-primary" onclick="document.getElementById('modalSillas').style.display='none'">Cerrar</button>
+    </div>
+  </div>
+</div>
+    <div id="modalSelFuncion" class="modal-overlay" style="display:none;align-items:center;justify-content:center;z-index:1050;">
+  <div class="modal" style="max-width:760px;width:95%;max-height:92vh;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <h3 id="sf_titulo" style="font-size:22px;line-height:1;">Seleccionar Función</h3>
+        </div>
+        <p class="text-muted" style="font-size:12px;margin-top:4px;">Elige sucursal, tipo de sala, fecha y horario</p>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="cerrarSeleccionFuncion()">✕</button>
+    </div>
+
+    <!-- Fila 1:Sucursal + Tipo + Rango de fechas -->
+    <div style="padding:14px 20px;border-bottom:1px solid var(--c-border);background:var(--c-card);display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:160px;">
+        <label style="font-size:11px;color:var(--c-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Sucursal</label>
+        <select id="sf_sucursal" onchange="filtrarFuncionesModal()" style="background:var(--c-surface);color:var(--c-text);border:1px solid var(--c-border);border-radius:4px;padding:8px 10px;font-size:13px;">
+          <option value="">—Todas —</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:110px;">
+        <label style="font-size:11px;color:var(--c-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Tipo Sala</label>
+        <select id="sf_tipo" onchange="filtrarFuncionesModal()" style="background:var(--c-surface);color:var(--c-text);border:1px solid var(--c-border);border-radius:4px;padding:8px 10px;font-size:13px;">
+          <option value="">— Todos —</option>
+          <option value="2D">2D</option>
+          <option value="3D">3D</option>
+          <option value="PRO">PRO</option>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:130px;">
+        <label style="font-size:11px;color:var(--c-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Desde</label>
+        <input type="date" id="sf_fechaDesde" onchange="onRangoFechaChange()" style="background:var(--c-surface);color:var(--c-text);border:1px solid var(--c-border);border-radius:4px;padding:8px 10px;font-size:13px;">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:130px;">
+        <label style="font-size:11px;color:var(--c-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Hasta</label>
+        <input type="date" id="sf_fechaHasta" onchange="onRangoFechaChange()" style="background:var(--c-surface);color:var(--c-text);border:1px solid var(--c-border);border-radius:4px;padding:8px 10px;font-size:13px;">
+      </div>
+      <button class="btn btn-sm" onclick="limpiarFiltrosSF()" style="align-self:flex-end;padding:8px 12px;">Limpiar</button>
+    </div>
+
+    <!-- Chips de fechas disponibles -->
+    <div id="sf_date_chips_wrap" style="display:none;border-bottom:1px solid var(--c-border);background:var(--c-bg);">
+      <div style="padding:10px 20px 4px;font-size:11px;color:var(--c-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Fechas disponibles</div>
+      <div id="sf_date_chips" class="sf-date-chips"></div>
+    </div>
+
+    <!-- Chips de horarios disponibles -->
+    <div id="sf_time_chips_wrap" style="display:none;padding:10px 20px 14px;border-bottom:1px solid var(--c-border);background:var(--c-bg);">
+      <div style="font-size:11px;color:var(--c-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin-bottom:8px;">Horarios disponibles</div>
+      <div id="sf_time_chips" class="sf-time-chips"></div>
+    </div>
+
+    <div id="sf_lista" style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:10px;min-height:200px;">
+      <div class="empty-state">Selecciona filtros para ver funciones disponibles.</div>
+    </div>
+  </div>
+</div>
+    <div id="modalDetallesGrupo" class="modal-overlay" style="display:none;align-items:center;justify-content:center;">
+  <div class="modal" style="max-width:700px;width:95%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;">
+    <div class="modal-header">
+      <h3 id="mdg_titulo" style="font-size:16px;font-weight:700;">Detalles del grupo</h3>
+      <button class="btn btn-sm btn-danger" onclick="cerrarModalDetalles()">✕</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;flex:1;">
+      <input type="hidden" id="mdg_grupoKey">
+      <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:8px;padding:14px;">
+        <p style="font-size:12px;color:var(--c-muted);margin-bottom:10px;"> Editar película, sucursal y sala para <strong>todas</strong> las funciones del grupo:</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+          <div class="input-group" style="margin:0"><label>Película</label><select id="mdg_pelicula"></select></div>
+          <div class="input-group" style="margin:0"><label>Sucursal</label><select id="mdg_sucursal" onchange="filtrarSalasMDG()"><option value="">—Todas —</option></select></div>
+          <div class="input-group" style="margin:0"><label>Sala</label><select id="mdg_sala"><option value="">-- Selecciona --</option></select></div>
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:flex-end;">
+          <button class="btn btn-primary btn-sm" onclick="guardarEdicionGrupo()"> Guardar cambios en grupo</button>
+        </div>
+      </div>
+      <div id="mdg_batch_bar" style="display:none;align-items:center;gap:10px;padding:8px 12px;background:rgba(220,50,50,.12);border:1px solid rgba(220,50,50,.3);border-radius:8px;">
+        <span id="mdg_batch_count" style="font-size:12px;color:var(--c-muted);flex:1;"></span>
+        <button class="btn btn-sm btn-danger" onclick="eliminarSeleccionadasMDG()">🗑 Eliminar seleccionadas</button>
+      </div>
+      <div>
+        <p style="font-size:12px;color:var(--c-muted);margin-bottom:8px;"> Funciones del grupo (ID · Fecha · Hora · Precio):</p>
+        <div style="overflow-x:auto;border:1px solid var(--c-border);border-radius:8px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+            <tr style="background:var(--c-surface);">
+              <th style="padding:6px 8px;width:32px;"><input type="checkbox" id="mdg_ck_all" title="Seleccionar todas" style="accent-color:var(--c-gold);width:14px;height:14px;cursor:pointer;" onchange="toggleTodosMDG(this.checked)"></th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--c-muted);text-align:left;">ID</th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--c-muted);text-align:left;">Fecha</th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--c-muted);text-align:left;">Hora</th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--c-muted);text-align:left;">Precio</th>
+              <th style="padding:6px 8px;font-size:11px;color:var(--c-muted);text-align:left;">Acciones</th>
+            </tr>
+            </thead>
+            <tbody id="mdg_tabla"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div id="modalEditFuncionInd" class="modal-overlay" style="display:none;align-items:center;justify-content:center;z-index:1100;">
+  <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:12px;padding:24px;width:95%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+      <h4 id="efi_titulo" style="font-size:15px;font-weight:700;">Editar Función</h4>
+      <button class="btn btn-sm btn-danger" onclick="cerrarEditFuncionInd()">✕</button>
+    </div>
+    <input type="hidden" id="efi_id">
+    <div style="display:grid;gap:12px;">
+      <div class="input-group" style="margin:0"><label>Película</label><select id="efi_peli"></select></div>
+      <div class="input-group" style="margin:0"><label>Sucursal</label><select id="efi_sucursal" onchange="filtrarSalasEFI()"><option value="">—Todas —</option></select></div>
+      <div class="input-group" style="margin:0"><label>Sala</label><select id="efi_sala"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="input-group" style="margin:0"><label>Fecha</label><input type="date" id="efi_fecha"></div>
+        <div class="input-group" style="margin:0"><label>Hora inicio</label><input type="time" id="efi_hora"></div>
+      </div>
+      <div class="input-group" style="margin:0"><label>Precio Entrada (COP)</label><input type="number" id="efi_precio" step="500"></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+      <button class="btn" onclick="cerrarEditFuncionInd()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEditFuncionInd()"> Guardar</button>
+    </div>
+  </div>
+</div>
+    <div id="modalReserva" class="modal-overlay">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <div>
+        <h3 id="m_tituloPeli" style="font-size: 28px; line-height: 1;">Cargando...</h3>
+        <div class="mono text-muted" style="margin-top: 6px;" id="m_infoFuncion"></div>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="cerrarModal()">Cerrar </button>
+    </div>
+
+    <!-- PASO 1: Mapa de asientos -->
+    <div id="paso1Modal" class="modal-body" style="flex-direction:column;padding:0">
+      <div class="map-section" style="border-radius:0 0 var(--radius-lg) var(--radius-lg)">
+        <div class="screen-curve"></div>
+        <div class="rows-container" id="mapaContenedor" style="overflow-x:auto;width:100%;padding-bottom:8px;"></div>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-box free"></div> Disponible</div>
+          <div class="leg-item"><div class="leg-box sel"></div> Seleccionada</div>
+          <div class="leg-item"><div class="leg-box occ"></div> Ocupada</div>
+        </div>
+      </div>
+      <div style="padding:12px 24px 16px;background:var(--c-surface);border-top:1px solid var(--c-border);border-radius:0 0 var(--radius-lg) var(--radius-lg)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <div>
+              <span class="text-muted" style="font-size:12px">Seleccionadas (máx 4): </span>
+              <span class="mono text-gold" id="r_sillasSel" style="font-size:14px">Ninguna</span>
+            </div>
+            <div id="seat-info-bar" style="display:none;gap:10px;align-items:center;font-size:11px;font-family:var(--f-mono);color:var(--c-muted)">
+              <span id="sib-codigo" style="color:var(--c-gold);font-weight:700;font-size:13px"></span>
+              <span id="sib-vis"></span>
+              <span id="sib-elev" style="color:rgba(255,255,255,0.4)"></span>
+              <span id="sib-bloque" style="color:rgba(245,197,24,0.6)"></span>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="padding:10px 28px;font-size:14px" onclick="irPaso2()">Continuar pago →</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:rgba(245,197,24,0.07);border:1px solid rgba(245,197,24,0.25);border-radius:8px;padding:8px 12px;">
+          <span style="font-size:15px;">⚠️</span>
+          <span style="font-size:11px;color:rgba(238,238,248,0.6);line-height:1.4;">
+            <strong style="color:var(--c-gold);">Entorno académico —</strong> todos los pagos son 100% simulados. No se realizan cobros reales ni se procesan datos financieros.
+          </span>
+        </div>
+        <!-- Countdown de bloqueo de sillas -->
+        <div id="bloqueo-countdown" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:8px 14px;border:1px solid rgba(245,197,24,0.3);border-radius:8px;background:rgba(245,197,24,0.06);">
+          <span style="font-size:14px;">⏳</span>
+          <span style="font-size:12px;color:var(--c-muted);">Sillas reservadas por:</span>
+          <span id="bloqueo-timer-val" style="font-family:var(--f-mono);font-size:16px;font-weight:700;color:var(--c-gold);">07:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 2: Datos del cliente, método de pago y confirmación -->
+    <div id="paso2Modal" style="display:none;flex-direction:column">
+      <div style="padding:24px;border-bottom:1px solid var(--c-border);display:flex;align-items:center;gap:12px">
+        <button class="btn btn-sm" onclick="volverPaso1()">← Volver al mapa</button>
+        <span class="text-muted" style="font-size:13px">Asientos: <strong class="text-gold" id="p2_sillas"></strong></span>
+      </div>
+      <div style="padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:12px;overflow-y:auto;max-height:60vh">
+        <div style="grid-column:1/-1">
+          <div class="ticket-summary">
+            <div class="flex-between mb-1">
+              <span class="text-muted" style="font-size:12px">Precio Unitario:</span>
+              <span class="mono" id="r_precioBase">$0</span>
+            </div>
+            <div class="flex-between mb-2 pb-2" style="border-bottom:1px dashed var(--c-border)">
+              <span class="text-muted" style="font-size:12px">Asientos seleccionados:</span>
+              <span class="mono text-gold" id="p2_num">0</span>
+            </div>
+            <div style="text-align:right">
+              <div class="text-muted" style="font-size:11px;text-transform:uppercase">Total a Cobrar</div>
+              <div class="total-price" id="r_total">$0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BANNER PAGOS SIMULADOS -->
+        <div style="grid-column:1/-1">
+          <div style="
+            background: linear-gradient(135deg, rgba(245,197,24,0.08) 0%, rgba(245,197,24,0.03) 100%);
+            border: 1px solid rgba(245,197,24,0.35);
+            border-left: 4px solid var(--c-gold);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+          ">
+            <span style="font-size:20px;flex-shrink:0;margin-top:1px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></span>
+            <div>
+              <div style="font-size:12px;font-weight:700;color:var(--c-gold);letter-spacing:0.5px;margin-bottom:3px;">API ESTUDIANTIL — ENTORNO DE PRUEBAS</div>
+              <div style="font-size:12px;color:rgba(238,238,248,0.65);line-height:1.5;"> Todos los pagos son <strong style="color:var(--c-gold)">100% simulados</strong>. No se realizan cobros reales.
+                Los datos de tarjeta, Nequi y PSE son ficticios y solo sirven para validar el flujo.
+                La transacción queda registrada en la base de datos con estado <span style="font-family:monospace;font-size:11px;background:rgba(245,197,24,0.12);padding:1px 6px;border-radius:3px;">SIMULADO</span>.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MÉTODO DE PAGO -->
+        <div style="grid-column:1/-1">
+          <div style="font-size:12px;color:var(--c-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;"> Método de Pago *</div>
+          <div class="pay-methods" style="grid-template-columns:repeat(3,1fr)">
+            <button class="pay-method-btn" data-metodo="TARJETA" onclick="seleccionarMetodoPago(this)">
+              <span class="pay-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg></span>
+              <span>Tarjeta</span>
+            </button>
+            <button class="pay-method-btn" data-metodo="NEQUI" onclick="seleccionarMetodoPago(this)">
+              <span class="pay-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg></span>
+              <span>Nequi</span>
+            </button>
+            <button class="pay-method-btn" data-metodo="PSE" onclick="seleccionarMetodoPago(this)">
+              <span class="pay-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></span>
+              <span>PSE</span>
+            </button>
+          </div>
+          <input type="hidden" id="r_metodoPago" value="">
+
+          <!-- TARJETA -->
+          <div id="detalle_TARJETA" style="display:none;background:var(--c-card2,var(--c-surface));border:1.5px solid var(--c-border);border-radius:var(--radius);padding:16px;margin-top:8px;">
+            <div style="font-size:11px;color:var(--c-gold);font-weight:700;text-transform:uppercase;margin-bottom:12px;"> Datos de Tarjeta (simulado)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="input-group" style="grid-column:1/-1;margin:0">
+                <label>Número de Tarjeta</label>
+                <input type="text" id="t_numero" maxlength="19" placeholder="0000 0000 0000 0000" oninput="formatCardNumber(this)" style="font-family:monospace;letter-spacing:2px;">
+              </div>
+              <div class="input-group" style="margin:0">
+                <label>Titular</label>
+                <input type="text" id="t_titular" placeholder="Nombre en la tarjeta">
+              </div>
+              <div class="input-group" style="margin:0">
+                <label>Tipo</label>
+                <select id="t_tipo">
+                  <option value="CREDITO">Crédito</option>
+                  <option value="DEBITO">Débito</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin:0">
+                <label>Vencimiento</label>
+                <input type="text" id="t_venc" maxlength="5" placeholder="MM/AA" oninput="formatExpiry(this)">
+              </div>
+              <div class="input-group" style="margin:0">
+                <label>CVV</label>
+                <input type="text" id="t_cvv" maxlength="4" placeholder="•••">
+              </div>
+            </div>
+          </div>
+
+          <!-- NEQUI -->
+          <div id="detalle_NEQUI" style="display:none;background:var(--c-card2,var(--c-surface));border:1.5px solid var(--c-border);border-radius:var(--radius);padding:16px;margin-top:8px;">
+            <div style="font-size:11px;color:#8b5cf6;font-weight:700;text-transform:uppercase;margin-bottom:12px;"> Pago con Nequi (simulado)</div>
+            <div style="display:grid;gap:10px;">
+              <div class="input-group" style="margin:0">
+                <label>Número de celular Nequi</label>
+                <input type="text" id="n_numero" maxlength="10" placeholder="3XXXXXXXXX" oninput="formatPhone(this)">
+              </div>
+              <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:8px;padding:12px;font-size:12px;color:var(--c-muted);text-align:center;line-height:1.6;"> Se enviará notificación al número registrado para aprobar el pago de <strong id="nequi_monto" style="color:#8b5cf6;">$0</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- PSE -->
+          <div id="detalle_PSE" style="display:none;background:var(--c-card2,var(--c-surface));border:1.5px solid var(--c-border);border-radius:var(--radius);padding:16px;margin-top:8px;">
+            <div style="font-size:11px;color:#0ea5e9;font-weight:700;text-transform:uppercase;margin-bottom:12px;"> Pago PSE (simulado)</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="input-group" style="grid-column:1/-1;margin:0">
+                <label>Banco</label>
+                <select id="p_banco">
+                  <option value="">— Selecciona tu banco —</option>
+                  <option value="BANCOLOMBIA">Bancolombia</option>
+                  <option value="DAVIVIENDA">Davivienda</option>
+                  <option value="BOGOTA">Banco de Bogotá</option>
+                  <option value="BBVA">BBVA</option>
+                  <option value="OCCIDENTE">Banco de Occidente</option>
+                  <option value="POPULAR">Banco Popular</option>
+                  <option value="COLPATRIA">Scotiabank Colpatria</option>
+                  <option value="AV_VILLAS">AV Villas</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin:0">
+                <label>Tipo de Persona</label>
+                <select id="p_tipo_persona">
+                  <option value="NATURAL">Natural</option>
+                  <option value="JURIDICA">Jurídica</option>
+                </select>
+              </div>
+              <div class="input-group" style="margin:0">
+                <label>Tipo de ID</label>
+                <select id="p_tipo_id">
+                  <option value="CC">Cédula</option>
+                  <option value="NIT">NIT</option>
+                  <option value="CE">Cédula Extranjería</option>
+                </select>
+              </div>
+              <div class="input-group" style="grid-column:1/-1;margin:0">
+                <label>Correo electrónico</label>
+                <input type="email" id="p_email" placeholder="correo@ejemplo.com">
+              </div>
+              <div style="grid-column:1/-1;background:rgba(14,165,233,0.08);border:1px solid rgba(14,165,233,0.3);border-radius:8px;padding:12px;font-size:12px;color:var(--c-muted);text-align:center;line-height:1.6;"> Serás redirigido al portal de tu banco para completar el pago de <strong id="pse_monto" style="color:#0ea5e9;">$0</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Cédula del Cliente *</label>
+          <input type="text" id="r_cliDoc" required="" placeholder="Ej: 1144...">
+        </div>
+        <div class="input-group">
+          <label>Nombre del Cliente *</label>
+          <input type="text" id="r_cliNom" placeholder="Nombre completo" required="">
+        </div>
+        <div class="input-group">
+          <label>Teléfono / Contacto</label>
+          <input type="text" id="r_cliTel" placeholder="3001234567">
+        </div>
+        <div class="input-group">
+          <label>Dirección</label>
+          <input type="text" id="r_cliDir" placeholder="Cra 5 # 10-20, Cali">
+        </div>
+        <div style="grid-column:1/-1">
+          <input type="hidden" id="r_funcionId">
+          <button type="button" class="btn btn-primary w-full" style="padding:14px;font-size:14px" onclick="procesarPago()"> Confirmar Pago y Emitir Tiquetes</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
