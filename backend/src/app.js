@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import pool from './db.js';
+import cinesRouter from './routes/cines.js';
 
 const app = express();
 
@@ -16,5 +17,7 @@ app.get('/api/health', async (_req, res) => {
     res.status(503).json({ status: 'error', db: 'down', message: err.message });
   }
 });
+
+app.use('/api/cines', cinesRouter);
 
 export default app;
