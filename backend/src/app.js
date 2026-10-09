@@ -3,6 +3,7 @@ import cors from 'cors';
 import pool from './db.js';
 import cinesRouter from './routes/cines.js';
 import sucursalesRouter from './routes/sucursales.js';
+import salasRouter from './routes/salas.js';
 
 const app = express();
 
@@ -21,5 +22,6 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/cines', cinesRouter);
 app.use('/api/sucursales', sucursalesRouter);
+app.use('/api/salas', salasRouter);
 
 export default app;
