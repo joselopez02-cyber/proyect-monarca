@@ -329,6 +329,7 @@ async function cargarCines() {
         <td>
           <div style="display:flex;gap:4px;">
             <button class="btn btn-sm" title="Ver sucursales" onclick="verSucursalesDeCine(${c.cineId},'${esc(c.nombreDelCine||c.nombre||'')}')">👁</button>
+            <button class="btn btn-sm" onclick="editarCine(${c.cineId},'${esc(c.nombreDelCine||c.nombre||'')}','${esc(c.cineCont||c.contacto||'')}')">Editar</button>
             <button class="btn btn-sm btn-danger" onclick="eliminarEntidad('/cines/${c.cineId}', cargarSucursales)">Eliminar</button>
           </div>
         </td>
@@ -339,6 +340,19 @@ async function cargarCines() {
   } catch (e) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Error: ${e.message}</td></tr>`;
   }
+}
+
+async function editarCine(id, nombreActual, contActual) {
+  const nombre = prompt('Nombre del cine:', nombreActual);
+  if (nombre === null) return;
+  if (!nombre.trim()) { showAlert('El nombre del cine es obligatorio.', 'error'); return; }
+  const cont = prompt('Contacto del cine:', contActual);
+  if (cont === null) return;
+  try {
+    await api('/cines/' + id, 'PUT', { nombreDelCine: nombre.trim(), cineCont: cont.trim() || null });
+    showAlert('Cine actualizado correctamente.');
+    cargarSucursales();
+  } catch (e) { showAlert('Error al editar cine: ' + e.message, 'error'); }
 }
 
 async function crearCine() {
