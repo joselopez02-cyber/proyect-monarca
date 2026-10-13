@@ -7,8 +7,8 @@
 
 -- Usuarios
 INSERT INTO usuario (username, email, password_hash, rol) VALUES
-('admin',   'admin@monarca.co',   '$2a$12$XRAVvAi4ckSjhajv3QXgMeHiN5o0Z4/TK2h/3XDxD5MtWknl3VE/6', 'ADMIN'),
-('usuario', 'usuario@monarca.co', '$2a$12$XRAVvAi4ckSjhajv3QXgMeHiN5o0Z4/TK2h/3XDxD5MtWknl3VE/6', 'USER')
+('admin',   'admin@monarca.co',   '$2b$12$Ning6sGFH9kJqH3xXZFLGOTH4nVog3E0zYSaBDHj.Ct14uSM8xbYG', 'ADMIN'),
+('usuario', 'usuario@monarca.co', '$2b$12$Ning6sGFH9kJqH3xXZFLGOTH4nVog3E0zYSaBDHj.Ct14uSM8xbYG', 'USER')
 ON CONFLICT DO NOTHING;
 
 -- Cines y sucursales (Cali)
