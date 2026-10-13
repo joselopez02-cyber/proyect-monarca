@@ -8,6 +8,8 @@ import gestoresRouter from './routes/gestores.js';
 import cinesRouter from './routes/cines.js';
 import sucursalesRouter from './routes/sucursales.js';
 import salasRouter from './routes/salas.js';
+import peliculasRouter from './routes/peliculas.js';
+import funcionesRouter from './routes/funciones.js';
 
 const app = express();
 
@@ -15,6 +17,8 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(cors());
+// El póster viaja en Base64 (hasta ~2 MB): estas rutas aceptan un cuerpo más grande que el resto de la API (100 kb)
+app.use('/api/peliculas', express.json({ limit: '3mb' }));
 app.use(express.json());
 
 // Comprueba que la API y la base de datos responden
@@ -33,6 +37,8 @@ app.use('/api/gestores', gestoresRouter);
 app.use('/api/cines', cinesRouter);
 app.use('/api/sucursales', sucursalesRouter);
 app.use('/api/salas', salasRouter);
+app.use('/api/peliculas', peliculasRouter);
+app.use('/api/funciones', funcionesRouter);
 
 app.use(notFound);
 app.use(errorHandler);

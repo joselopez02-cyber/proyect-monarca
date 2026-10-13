@@ -19,6 +19,9 @@ export function errorHandler(err, _req, res, _next) {
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json(cuerpo('El cuerpo de la petición no es un JSON válido.'));
   }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json(cuerpo('El cuerpo de la petición es demasiado grande.'));
+  }
   if (err instanceof HttpError) {
     return res.status(err.status).json(cuerpo(err.message));
   }
