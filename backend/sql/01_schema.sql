@@ -133,3 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_funcion_sala     ON funcion(sala_id);
 CREATE INDEX IF NOT EXISTS idx_silla_funcion    ON silla(funcion_id);
 CREATE INDEX IF NOT EXISTS idx_reserva_cliente  ON reserva(cust_id);
 CREATE INDEX IF NOT EXISTS idx_trans_cliente    ON transaccion(cust_id);
+
+-- KAN-18: un gestor es un usuario con rol GESTOR asignado a una sucursal
+ALTER TABLE gestor ADD COLUMN IF NOT EXISTS usuario_id BIGINT REFERENCES usuario(usuario_id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_gestor_usuario ON gestor(usuario_id);

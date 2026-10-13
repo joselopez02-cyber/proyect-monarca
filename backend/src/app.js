@@ -4,6 +4,7 @@ import pool from './db.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import authRouter from './routes/auth.js';
 import usuariosRouter from './routes/usuarios.js';
+import gestoresRouter from './routes/gestores.js';
 import cinesRouter from './routes/cines.js';
 import sucursalesRouter from './routes/sucursales.js';
 import salasRouter from './routes/salas.js';
@@ -28,6 +29,7 @@ app.get('/api/health', async (_req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/usuarios', usuariosRouter);
+app.use('/api/gestores', gestoresRouter);
 app.use('/api/cines', cinesRouter);
 app.use('/api/sucursales', sucursalesRouter);
 app.use('/api/salas', salasRouter);
