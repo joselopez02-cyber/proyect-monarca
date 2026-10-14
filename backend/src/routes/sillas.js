@@ -1,9 +1,10 @@
 import { Router } from 'express';
+import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parseId } from '../utils/validators.js';
 import {
-  TTL_SEG, textoTtl, normalizarCodigos, conTransaccion, asegurarSillas, leerSillasBloqueando,
+  TTL_SEG, textoTtl, normalizarCodigos, conTransaccion, asegurarSillas, leerSillasBloqueando, estadoVisible,
 } from '../utils/sillas.js';
 
 const router = Router();
@@ -13,6 +14,45 @@ function leerPeticion(body = {}) {
   try { funcionId = parseId(body.funcionId); } catch { throw new HttpError(400, 'funcionId: debe ser un número positivo.'); }
   return { funcionId, codigos: normalizarCodigos(body.codigos) };
 }
+
+// KAN-26 (HU13): mapa de sillas de una función, con el estado de cada una.
+// Es público (como la cartelera) y no revela quién bloqueó cada silla.
+router.get('/funcion/:funcionId', async (req, res) => {
+  const funcionId = parseId(req.params.funcionId);
+
+  // Si es la primera vez que se consulta la función, sus sillas se crean aquí
+  await conTransaccion((client) => asegurarSillas(client, funcionId));
+
+  const { rows: info } = await pool.query(
+    `SELECT s.sala_id, s.nombre, s.tipo, s.filas, s.columnas
+       FROM funcion f JOIN sala s ON s.sala_id = f.sala_id WHERE f.funcion_id = $1`, [funcionId]);
+  const { rows } = await pool.query(
+    `SELECT silla_id, fila, numero, estado, reserva_id,
+            (estado = 'RESERVADA' AND reserva_id IS NULL AND bloqueado_en IS NOT NULL
+             AND bloqueado_en >= LOCALTIMESTAMP - make_interval(secs => $2::float8)) AS bloqueo_activo
+       FROM silla WHERE funcion_id = $1 ORDER BY fila, numero`,
+    [funcionId, TTL_SEG]);
+
+  const sillas = rows.map((r) => ({
+    sillaId: Number(r.silla_id),
+    fila: r.fila,
+    numero: r.numero,
+    codigo: `${r.fila}${r.numero}`,
+    estado: estadoVisible(r),
+  }));
+  const cuenta = (e) => sillas.filter((s) => s.estado === e).length;
+
+  res.json({
+    funcionId,
+    sala: info[0] && {
+      salaId: Number(info[0].sala_id), nombre: info[0].nombre, tipo: info[0].tipo,
+      filas: info[0].filas, columnas: info[0].columnas,
+    },
+    ttlSegundos: TTL_SEG,
+    resumen: { total: sillas.length, disponibles: cuenta('DISPONIBLE'), bloqueadas: cuenta('BLOQUEADA'), ocupadas: cuenta('OCUPADA') },
+    sillas,
+  });
+});
 
 // KAN-11 / KAN-27: bloquear sillas por un tiempo (TTL) mientras el cliente completa su compra.
 // Cuerpo: { "funcionId": 11, "codigos": ["A1", "A2"] }. Todo o nada.
