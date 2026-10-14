@@ -10,6 +10,7 @@ import sucursalesRouter from './routes/sucursales.js';
 import salasRouter from './routes/salas.js';
 import peliculasRouter from './routes/peliculas.js';
 import funcionesRouter from './routes/funciones.js';
+import sillasRouter from './routes/sillas.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/api/sucursales', sucursalesRouter);
 app.use('/api/salas', salasRouter);
 app.use('/api/peliculas', peliculasRouter);
 app.use('/api/funciones', funcionesRouter);
+app.use('/api/sillas', sillasRouter);
 
 app.use(notFound);
 app.use(errorHandler);
