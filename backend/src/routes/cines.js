@@ -1,11 +1,15 @@
 import express from 'express';
 import * as dbModule from '../db.js';
+import { requireAuth, requireRole } from '../middleware/auth.js';
 
 // Acepta que db.js exporte el pool directo, { pool } o { query }.
 const db = dbModule.pool || dbModule.default?.pool || dbModule.default || dbModule;
 
 const router = express.Router();
 router.use(express.json());
+
+// KAN-10: ver es público; crear, editar y eliminar es solo del ADMIN
+const soloAdmin = [requireAuth, requireRole('ADMIN')];
 
 const COLS = 'cine_id::int AS "cineId", nombre_del_cine AS "nombreDelCine", cine_cont AS "cineCont"';
 
@@ -46,7 +50,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // KAN-14: registrar un nuevo cine
-router.post('/', async (req, res, next) => {
+router.post('/', ...soloAdmin, async (req, res, next) => {
   try {
     const v = validar(req.body);
     if (v.error) return res.status(400).json({ error: v.error });
@@ -59,7 +63,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // KAN-15: editar un cine
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', ...soloAdmin, async (req, res, next) => {
   try {
     const id = idValido(req, res); if (id === null) return;
     const v = validar(req.body);
@@ -74,7 +78,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // KAN-15: eliminar un cine
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', ...soloAdmin, async (req, res, next) => {
   try {
     const id = idValido(req, res); if (id === null) return;
     const r = await db.query('DELETE FROM cine WHERE cine_id = $1', [id]);
