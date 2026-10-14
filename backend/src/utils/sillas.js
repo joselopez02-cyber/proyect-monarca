@@ -85,3 +85,11 @@ export async function leerSillasBloqueando(client, funcionId, codigos) {
   }
   return rows;
 }
+
+// Estado que ve el cliente en el mapa: DISPONIBLE, BLOQUEADA (bloqueo vigente) u OCUPADA.
+// Un bloqueo vencido cuenta como DISPONIBLE aunque la fila aún diga RESERVADA.
+export function estadoVisible(silla) {
+  if (silla.estado === 'OCUPADA' || (silla.estado === 'RESERVADA' && silla.reserva_id !== null)) return 'OCUPADA';
+  if (silla.bloqueo_activo) return 'BLOQUEADA';
+  return 'DISPONIBLE';
+}
