@@ -78,11 +78,54 @@ router.get('/', async (req, res) => {
   res.json(rows.map(aFuncion));
 });
 
-// Cartelera: de hoy en adelante
+// Las funciones se guardan con fecha y hora de Colombia; el servidor puede estar en otra zona horaria
+const ZONA = process.env.ZONA_HORARIA || 'America/Bogota';
+
+// Ejecuta la consulta con las condiciones dadas. Salvo que se pida todas=true, solo trae las funciones
+// vigentes: las que todavía no han empezado (fecha y hora de inicio posteriores a este momento).
+async function consultar({ condiciones = [], params = [], todas = false }) {
+  const cond = [...condiciones];
+  const p = [...params];
+  if (!todas) {
+    p.push(ZONA);
+    cond.push(`(f.fecha || ' ' || f.hora_inicio)::timestamp >= (NOW() AT TIME ZONE $${p.length})`);
+  }
+  const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+  const { rows } = await pool.query(`${SELECT_FUNCION} ${where} ${ORDEN}`, p);
+  return rows.map(aFuncion);
+}
+
+const pideTodas = (req) => req.query.todas === 'true';
+
+// KAN-21 (HU08): cartelera de funciones vigentes. Descarta las que ya empezaron o terminaron,
+// comparando fecha Y hora con el momento actual (no solo el día).
 router.get('/vigentes', async (_req, res) => {
-  const { rows } = await pool.query(
-    `${SELECT_FUNCION} WHERE f.fecha >= to_char(CURRENT_DATE, 'YYYY-MM-DD') ${ORDEN}`);
-  res.json(rows.map(aFuncion));
+  res.json(await consultar({}));
+});
+
+// KAN-22 (HU09): filtros de la cartelera. Por defecto solo muestran funciones vigentes;
+// con ?todas=true incluyen también las que ya pasaron.
+router.get('/pelicula/:movieId', async (req, res) => {
+  const movieId = parseId(req.params.movieId);
+  const { rowCount } = await pool.query('SELECT 1 FROM pelicula WHERE movie_id = $1', [movieId]);
+  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${movieId}`);
+  res.json(await consultar({ condiciones: ['f.movie_id = $1'], params: [movieId], todas: pideTodas(req) }));
+});
+
+router.get('/sala/:salaId', async (req, res) => {
+  const salaId = parseId(req.params.salaId);
+  const { rowCount } = await pool.query('SELECT 1 FROM sala WHERE sala_id = $1', [salaId]);
+  if (!rowCount) throw new HttpError(404, `Sala no encontrada con id: ${salaId}`);
+  res.json(await consultar({ condiciones: ['f.sala_id = $1'], params: [salaId], todas: pideTodas(req) }));
+});
+
+// /api/funciones/rango?desde=2026-11-20&hasta=2026-11-25 (ambas fechas incluidas).
+// También acepta inicio y fin, los nombres que usaba el backend anterior.
+router.get('/rango', async (req, res) => {
+  const desde = validarFecha(req.query.desde ?? req.query.inicio, 'desde');
+  const hasta = validarFecha(req.query.hasta ?? req.query.fin, 'hasta');
+  if (hasta < desde) throw new HttpError(400, 'hasta no puede ser anterior a desde.');
+  res.json(await consultar({ condiciones: ['f.fecha BETWEEN $1 AND $2'], params: [desde, hasta], todas: pideTodas(req) }));
 });
 
 router.get('/:id', async (req, res) => {
