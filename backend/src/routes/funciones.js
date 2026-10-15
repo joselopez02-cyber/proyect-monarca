@@ -4,6 +4,7 @@ import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { puedeAdministrarSucursal } from '../utils/gestores.js';
 import { parseId } from '../utils/validators.js';
+import { TTL_SEG } from '../utils/sillas.js';
 import {
   MARGEN_MIN, MAX_DIAS, MAX_HORARIOS,
   validarFecha, validarHora, moverDia, diasEnRango, fechasEntre, sumarMinutos,
@@ -55,13 +56,14 @@ const idCampo = (valor, campo) => {
 // ¿Hay otra función en la misma sala cuyo bloque (duración + margen) choque con el nuevo?
 // Bloque = desde que empieza hasta que termina la película más el margen de limpieza.
 // $1 sala, $2/$3 día anterior y siguiente (para no revisar toda la tabla), $4 inicio nuevo,
-// $5 minutos del bloque nuevo, $6 margen
+// $5 minutos del bloque nuevo, $6 margen, $7 función a ignorar (la que se está editando; null si es nueva)
 const SQL_CRUCE = `
   SELECT f.fecha, f.hora_inicio, p.nombre
     FROM funcion f
     JOIN pelicula p ON p.movie_id = f.movie_id
    WHERE f.sala_id = $1
      AND f.fecha BETWEEN $2 AND $3
+     AND ($7::bigint IS NULL OR f.funcion_id <> $7::bigint)
      AND (f.fecha || ' ' || f.hora_inicio)::timestamp < $4::timestamp + make_interval(mins => $5::int)
      AND $4::timestamp < (f.fecha || ' ' || f.hora_inicio)::timestamp
                          + make_interval(mins => COALESCE(p.duracion_min, 0) + $6::int)`;
@@ -135,41 +137,30 @@ router.get('/:id', async (req, res) => {
   res.json(aFuncion(rows[0]));
 });
 
-// KAN-20 (HU07): programar una función (película + sala + horario), sin cruces en la sala.
-// Una función:   { "movieId": 1, "salaId": 2, "fecha": "2026-11-20", "hora": "19:00", "precioBoleto": 18000 }
-// Varias a la vez: { "movieId", "salaId", "fechaInicio", "fechaFin", "horarios": ["15:00","19:00"], "precioBoleto" }
-// Es todo o nada: si una sola se cruza, no se crea ninguna.
-router.post('/programar', ...admins, async (req, res) => {
-  const b = req.body ?? {};
-  const movieId = idCampo(b.movieId ?? b.peliculaId, 'movieId');
-  const salaId = idCampo(b.salaId, 'salaId');
-
+// precioBoleto en pesos: número (o texto numérico) mayor que 0
+function leerPrecio(b) {
   const precio = typeof b.precioBoleto === 'number' ? b.precioBoleto
     : typeof b.precioBoleto === 'string' && b.precioBoleto.trim() !== '' ? Number(b.precioBoleto) : NaN;
   if (!Number.isFinite(precio) || precio <= 0 || precio > 1_000_000) {
     throw new HttpError(400, 'precioBoleto: debe ser un número mayor que 0 (en pesos).');
   }
+  return precio;
+}
 
-  let fechas;
-  if (b.fecha !== undefined) {
-    fechas = [validarFecha(b.fecha, 'fecha')];
-  } else if (b.fechaInicio !== undefined) {
-    const inicio = validarFecha(b.fechaInicio, 'fechaInicio');
-    const fin = validarFecha(b.fechaFin ?? b.fechaInicio, 'fechaFin');
-    if (fin < inicio) throw new HttpError(400, 'fechaFin no puede ser anterior a fechaInicio.');
-    if (diasEnRango(inicio, fin) > MAX_DIAS) throw new HttpError(400, `El rango no puede superar ${MAX_DIAS} días.`);
-    fechas = fechasEntre(inicio, fin);
-  } else {
-    throw new HttpError(400, 'Indica la fecha (fecha) o un rango (fechaInicio y fechaFin).');
-  }
+// Cuerpo de UNA función (POST y PUT): { movieId, salaId, fecha, hora (o horaInicio), precioBoleto }
+function leerFuncionUnica(b) {
+  return {
+    movieId: idCampo(b.movieId ?? b.peliculaId, 'movieId'),
+    salaId: idCampo(b.salaId, 'salaId'),
+    fecha: validarFecha(b.fecha, 'fecha'),
+    hora: validarHora(b.hora ?? b.horaInicio, 'hora'),
+    precio: leerPrecio(b),
+  };
+}
 
-  const crudas = b.horarios ?? (b.hora !== undefined ? [b.hora] : b.horaInicio !== undefined ? [b.horaInicio] : undefined);
-  if (!Array.isArray(crudas) || crudas.length === 0) {
-    throw new HttpError(400, 'Indica la hora (hora) o una lista de horarios (horarios).');
-  }
-  if (crudas.length > MAX_HORARIOS) throw new HttpError(400, `Máximo ${MAX_HORARIOS} horarios por día.`);
-  const horas = [...new Set(crudas.map((h, i) => validarHora(h, `horarios[${i}]`)))].sort();
-
+// Crea las funciones (todas o ninguna): valida película y sala, revisa permisos de sucursal
+// y que no se crucen en la sala. Devuelve las funciones creadas.
+async function crearFunciones(user, { movieId, salaId, fechas, horas, precio }) {
   const { rows: ps } = await pool.query('SELECT movie_id, nombre, duracion_min FROM pelicula WHERE movie_id = $1', [movieId]);
   if (!ps[0]) throw new HttpError(404, `Película no encontrada con id: ${movieId}`);
   if (!ps[0].duracion_min) throw new HttpError(400, 'La película no tiene duración registrada; edítala antes de programarla.');
@@ -180,7 +171,7 @@ router.post('/programar', ...admins, async (req, res) => {
   const sala = ss[0];
 
   // Un GESTOR solo programa en las salas de su sucursal
-  if (!(await puedeAdministrarSucursal(req.user, sala.sucursal_id))) {
+  if (!(await puedeAdministrarSucursal(user, sala.sucursal_id))) {
     throw new HttpError(403, 'Esta sala pertenece a otra sucursal. Solo puedes programar en la tuya.');
   }
 
@@ -196,7 +187,7 @@ router.post('/programar', ...admins, async (req, res) => {
     for (const fecha of fechas) {
       for (const hora of horas) {
         const { rows } = await client.query(SQL_CRUCE, [
-          salaId, moverDia(fecha, -1), moverDia(fecha, 1), `${fecha} ${hora}`, duracion + MARGEN_MIN, MARGEN_MIN,
+          salaId, moverDia(fecha, -1), moverDia(fecha, 1), `${fecha} ${hora}`, duracion + MARGEN_MIN, MARGEN_MIN, null,
         ]);
         if (rows.length) {
           cruces.push(`${fecha} ${hora} (choca con «${rows[0].nombre}» de las ${rows[0].hora_inicio} del ${rows[0].fecha})`);
@@ -224,7 +215,132 @@ router.post('/programar', ...admins, async (req, res) => {
   }
 
   const { rows } = await pool.query(`${SELECT_FUNCION} WHERE f.funcion_id = ANY($1::bigint[]) ${ORDEN}`, [ids]);
-  res.status(201).json({ creadas: rows.length, funciones: rows.map(aFuncion) });
+  return rows.map(aFuncion);
+}
+
+// KAN-20 (HU07): programar una función (película + sala + horario), sin cruces en la sala.
+// Una función:   { "movieId": 1, "salaId": 2, "fecha": "2026-11-20", "hora": "19:00", "precioBoleto": 18000 }
+// Varias a la vez: { "movieId", "salaId", "fechaInicio", "fechaFin", "horarios": ["15:00","19:00"], "precioBoleto" }
+// Es todo o nada: si una sola se cruza, no se crea ninguna.
+router.post('/programar', ...admins, async (req, res) => {
+  const b = req.body ?? {};
+  const movieId = idCampo(b.movieId ?? b.peliculaId, 'movieId');
+  const salaId = idCampo(b.salaId, 'salaId');
+
+  const precio = leerPrecio(b);
+
+  let fechas;
+  if (b.fecha !== undefined) {
+    fechas = [validarFecha(b.fecha, 'fecha')];
+  } else if (b.fechaInicio !== undefined) {
+    const inicio = validarFecha(b.fechaInicio, 'fechaInicio');
+    const fin = validarFecha(b.fechaFin ?? b.fechaInicio, 'fechaFin');
+    if (fin < inicio) throw new HttpError(400, 'fechaFin no puede ser anterior a fechaInicio.');
+    if (diasEnRango(inicio, fin) > MAX_DIAS) throw new HttpError(400, `El rango no puede superar ${MAX_DIAS} días.`);
+    fechas = fechasEntre(inicio, fin);
+  } else {
+    throw new HttpError(400, 'Indica la fecha (fecha) o un rango (fechaInicio y fechaFin).');
+  }
+
+  const crudas = b.horarios ?? (b.hora !== undefined ? [b.hora] : b.horaInicio !== undefined ? [b.horaInicio] : undefined);
+  if (!Array.isArray(crudas) || crudas.length === 0) {
+    throw new HttpError(400, 'Indica la hora (hora) o una lista de horarios (horarios).');
+  }
+  if (crudas.length > MAX_HORARIOS) throw new HttpError(400, `Máximo ${MAX_HORARIOS} horarios por día.`);
+  const horas = [...new Set(crudas.map((h, i) => validarHora(h, `horarios[${i}]`)))].sort();
+
+  const funciones = await crearFunciones(req.user, { movieId, salaId, fechas, horas, precio });
+  res.status(201).json({ creadas: funciones.length, funciones });
+});
+
+// POST /api/funciones: crea UNA función. Mismos permisos y mismas reglas que /programar.
+// Cuerpo: { "movieId": 1, "salaId": 2, "fecha": "2026-11-20", "hora": "19:00", "precioBoleto": 18000 }
+router.post('/', ...admins, async (req, res) => {
+  const n = leerFuncionUnica(req.body ?? {});
+  const [funcion] = await crearFunciones(req.user, { movieId: n.movieId, salaId: n.salaId, fechas: [n.fecha], horas: [n.hora], precio: n.precio });
+  res.status(201).json(funcion);
+});
+
+// PUT /api/funciones/{id}: edita película, sala, fecha, hora y precio (se envían todos).
+// - Si la función ya tiene reservas vigentes solo se puede cambiar el precio (las reservas guardan su total).
+// - Si hay clientes con sillas bloqueadas en este momento, se pide intentar de nuevo en unos minutos.
+// - Si cambia la sala, las sillas se regeneran con la matriz de la sala nueva y los asientos pasan a su capacidad.
+// - La sala debe estar libre en el nuevo horario (sin contar la propia función).
+router.put('/:id', ...admins, async (req, res) => {
+  const id = parseId(req.params.id);
+  const n = leerFuncionUnica(req.body ?? {});
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: fs } = await client.query(
+      `SELECT f.movie_id, f.sala_id, f.fecha, f.hora_inicio, sa.sucursal_id
+         FROM funcion f JOIN sala sa ON sa.sala_id = f.sala_id
+        WHERE f.funcion_id = $1 FOR UPDATE OF f`, [id]);
+    const actual = fs[0];
+    if (!actual) throw new HttpError(404, `Función no encontrada con id: ${id}`);
+    if (!(await puedeAdministrarSucursal(req.user, actual.sucursal_id))) {
+      throw new HttpError(403, 'Esta función es de otra sucursal.');
+    }
+
+    const { rows: ps } = await client.query('SELECT duracion_min FROM pelicula WHERE movie_id = $1', [n.movieId]);
+    if (!ps[0]) throw new HttpError(404, `Película no encontrada con id: ${n.movieId}`);
+    if (!ps[0].duracion_min) throw new HttpError(400, 'La película no tiene duración registrada; edítala antes de programarla.');
+    const duracion = ps[0].duracion_min;
+
+    // Bloquea la sala destino (igual que al programar) para que dos cambios simultáneos se turnen
+    const { rows: ss } = await client.query('SELECT sala_id, nombre, capacidad, sucursal_id FROM sala WHERE sala_id = $1 FOR UPDATE', [n.salaId]);
+    if (!ss[0]) throw new HttpError(404, `Sala no encontrada con id: ${n.salaId}`);
+    const sala = ss[0];
+    if (!(await puedeAdministrarSucursal(req.user, sala.sucursal_id))) {
+      throw new HttpError(403, 'Esa sala pertenece a otra sucursal. Solo puedes usar las de la tuya.');
+    }
+
+    const cambiaSala = Number(actual.sala_id) !== n.salaId;
+    const cambiaDatos = cambiaSala || Number(actual.movie_id) !== n.movieId
+      || actual.fecha !== n.fecha || actual.hora_inicio !== n.hora;
+
+    if (cambiaDatos) {
+      const { rows: rs } = await client.query(
+        `SELECT COUNT(*)::int AS n FROM reserva WHERE funcion_id = $1 AND estado <> 'CANCELADA'`, [id]);
+      if (rs[0].n > 0) {
+        throw new HttpError(409, `No se puede cambiar película, sala, fecha ni hora: la función tiene ${rs[0].n} reserva(s) vigente(s). Solo puedes cambiar el precio.`);
+      }
+      const { rows: bs } = await client.query(
+        `SELECT COUNT(*)::int AS n FROM silla
+          WHERE funcion_id = $1 AND estado = 'RESERVADA' AND reserva_id IS NULL AND bloqueado_en IS NOT NULL
+            AND bloqueado_en >= LOCALTIMESTAMP - make_interval(secs => $2::float8)`, [id, TTL_SEG]);
+      if (bs[0].n > 0) {
+        throw new HttpError(409, `Hay ${bs[0].n} silla(s) bloqueada(s) por clientes que están comprando. Intenta de nuevo en unos minutos.`);
+      }
+      const { rows: cr } = await client.query(SQL_CRUCE, [
+        n.salaId, moverDia(n.fecha, -1), moverDia(n.fecha, 1), `${n.fecha} ${n.hora}`, duracion + MARGEN_MIN, MARGEN_MIN, id,
+      ]);
+      if (cr.length) {
+        throw new HttpError(409,
+          `Cruce de horarios en la sala «${sala.nombre}»: ${n.fecha} ${n.hora} choca con «${cr[0].nombre}» de las ${cr[0].hora_inicio} del ${cr[0].fecha} (cada función necesita ${duracion} min + ${MARGEN_MIN} min de descanso).`);
+      }
+      if (cambiaSala) {
+        // Las sillas eran las de la sala anterior: se borran y se regeneran la próxima vez que se consulte el mapa
+        await client.query('DELETE FROM silla WHERE funcion_id = $1', [id]);
+        await client.query('UPDATE funcion SET capacidad_total = $1, asientos_disponibles = $1 WHERE funcion_id = $2', [sala.capacidad, id]);
+      }
+    }
+
+    await client.query(
+      `UPDATE funcion SET movie_id = $1, sala_id = $2, fecha = $3, hora_inicio = $4, precio_boleto = $5
+        WHERE funcion_id = $6`, [n.movieId, n.salaId, n.fecha, n.hora, n.precio, id]);
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  const { rows } = await pool.query(`${SELECT_FUNCION} WHERE f.funcion_id = $1`, [id]);
+  res.json(aFuncion(rows[0]));
 });
 
 router.delete('/:id', ...admins, async (req, res) => {
