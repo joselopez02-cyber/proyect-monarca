@@ -10,18 +10,18 @@ export const textoTtl = () =>
   TTL_SEG >= 60 ? `${Math.round(TTL_SEG / 60)} minuto(s)` : `${TTL_SEG} segundos`;
 
 // ["a1", "A2"] -> [{ codigo: "A1", fila: "A", numero: 1 }, ...] (valida formato, quita repetidas)
-export function normalizarCodigos(valor) {
+export function normalizarCodigos(valor, campo = 'codigos') {
   if (!Array.isArray(valor) || valor.length === 0) {
-    throw new HttpError(400, 'codigos: indica al menos una silla, por ejemplo ["A1","A2"].');
+    throw new HttpError(400, `${campo}: indica al menos una silla, por ejemplo ["A1","A2"].`);
   }
   if (valor.length > MAX_SILLAS_POR_BLOQUEO) {
-    throw new HttpError(400, `codigos: máximo ${MAX_SILLAS_POR_BLOQUEO} sillas por solicitud.`);
+    throw new HttpError(400, `${campo}: máximo ${MAX_SILLAS_POR_BLOQUEO} sillas por solicitud.`);
   }
   const vistos = new Map();
   for (const c of valor) {
     const m = typeof c === 'string' ? /^([A-Za-z])(\d{1,2})$/.exec(c.trim()) : null;
     if (!m || Number(m[2]) < 1) {
-      throw new HttpError(400, `codigos: "${String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1).`);
+      throw new HttpError(400, `${campo}: "${String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1).`);
     }
     const fila = m[1].toUpperCase();
     const numero = Number(m[2]);
