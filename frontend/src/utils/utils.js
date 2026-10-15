@@ -7,7 +7,7 @@
  * @param {string} msg   Mensaje a mostrar
  * @param {'success'|'error'} type
  */
-function showAlert(msg, type = 'success') {
+export function showAlert(msg, type = 'success') {
   const container = document.getElementById('toast-container');
   if (!container) return; // null guard: si el DOM aún no existe no crashea
   const toast = document.createElement('div');
@@ -26,7 +26,7 @@ function showAlert(msg, type = 'success') {
  * @param {string} s
  * @returns {string}
  */
-function esc(s) {
+export function esc(s) {
   return (s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
@@ -35,7 +35,7 @@ function esc(s) {
  * @param {string} s
  * @returns {string}
  */
-function escHtml(s) {
+export function escHtml(s) {
   if (!s) return '';
   return s
     .replace(/&/g, '&amp;')
@@ -43,6 +43,23 @@ function escHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+export function esEmail(v) {
+  if (typeof v !== 'string' || v.length > 254) return false;
+  const at = v.indexOf('@');
+  if (at <= 0 || at !== v.lastIndexOf('@')) return false;
+
+  const local = v.slice(0, at);
+  const domain = v.slice(at + 1);
+  if (local.length > 64 || !/^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/.test(local)) {
+    return false;
+  }
+
+  const labels = domain.split('.');
+  return labels.length >= 2
+    && labels.every((label) => label.length <= 63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label))
+    && /^[A-Za-z]{2,63}$/.test(labels.at(-1));
 }
 
 /**
@@ -77,7 +94,7 @@ function formatPhone(input) {
  * @param {string} tipo
  * @returns {string}
  */
-function tipoLabel(tipo) {
+export function tipoLabel(tipo) {
   if (!tipo) return '—';
   const map = { '2D': '2D', '3D': '3D', 'IMAX': 'IMAX', '4DX': '4DX', 'VIP': 'VIP', 'PREMIUM': 'PREMIUM',
                 'PRO': 'PRO', 'TRES_D': '3D', 'DOS_D': '2D' };
@@ -89,7 +106,7 @@ function tipoLabel(tipo) {
  * @param {string} iso  Fecha en formato YYYY-MM-DD
  * @returns {string}
  */
-function formatFechaCorta(iso) {
+export function formatFechaCorta(iso) {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-');
   const dias  = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -99,7 +116,7 @@ function formatFechaCorta(iso) {
 }
 
 /** Mapa de etiquetas para métodos de pago */
-const METODO_LABEL = {
+export const METODO_LABEL = {
   TARJETA_CREDITO: '💳 Tarjeta Crédito',
   TARJETA_DEBITO:  '💳 Tarjeta Débito',
   NEQUI:           '📱 Nequi',
@@ -109,3 +126,8 @@ const METODO_LABEL = {
 
 /** Alias de compatibilidad */
 function cargarClientes() { cargarUsuarios(); }
+
+Object.assign(window, {
+  showAlert, esc, escHtml, formatCardNumber, formatExpiry, formatPhone,
+  tipoLabel, formatFechaCorta, cargarClientes,
+});

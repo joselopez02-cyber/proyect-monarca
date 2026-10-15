@@ -3,18 +3,28 @@
    Depende de: api.js, utils.js
    ============================================================ */
 
+import { api } from '../../services/api.js';
+import { escHtml, formatFechaCorta, tipoLabel } from '../../utils/utils.js';
+import { funcionesCache } from '../shared-state.js';
+import { abrirTaquilla } from '../reservas/reservas.js';
+
 let _carteleraCards = [];
 
 // ── Cargar cartelera ─────────────────────────────────────────
-async function cargarCartelera() {
+export async function cargarCartelera() {
   // Solo ejecutar si la vista cartelera está activa
   if (!document.getElementById('view-cartelera')?.classList.contains('active')) return;
   const list = document.getElementById('carteleraList');
+  if (!list) {
+    throw new Error('No se encontró el contenedor de películas de Taquilla.');
+  }
   list.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Cargando cartelera...</div>';
   try {
-    funcionesCache = await api('/funciones/vigentes');
+    const funcionesVigentes = await api('/funciones/vigentes');
+    funcionesCache.splice(0, funcionesCache.length, ...funcionesVigentes);
     const hoyStr = new Date().toISOString().split('T')[0];
-    funcionesCache = funcionesCache.filter(f => f.fecha && f.fecha >= hoyStr);
+    const funcionesFuturas = funcionesCache.filter(f => f.fecha && f.fecha >= hoyStr);
+    funcionesCache.splice(0, funcionesCache.length, ...funcionesFuturas);
     list.innerHTML = '';
     if (!funcionesCache.length) {
       list.innerHTML = '<div class="empty-state" style="grid-column:1/-1">No hay funciones programadas activas.</div>';
@@ -281,8 +291,9 @@ async function filtrarFuncionesModal() {
     let ocupadas = 0, total = 0;
     try {
       const sillasData = await api(`/sillas/funcion/${f.funcionId}`);
-      total    = sillasData.length;
-      ocupadas = sillasData.filter(s => s.estado !== 'DISPONIBLE').length;
+      if (!Array.isArray(sillasData.sillas)) throw new Error('La API no devolvió la lista de sillas.');
+      total    = sillasData.sillas.length;
+      ocupadas = sillasData.sillas.filter(s => s.estado !== 'DISPONIBLE').length;
     } catch (_) {}
     const pct      = total ? Math.round((ocupadas / total) * 100) : 0;
     const barColor = pct > 80 ? 'var(--c-red)' : pct > 40 ? 'var(--c-gold)' : 'var(--c-green)';
@@ -343,3 +354,10 @@ async function seleccionarFuncion(fId) {
   cerrarSeleccionFuncion();
   await abrirTaquilla(fId);
 }
+
+Object.assign(window, {
+  cargarCartelera, filtrarCartelera, limpiarFiltrosCartelera,
+  abrirSeleccionFuncion, cerrarSeleccionFuncion, limpiarFiltrosSF,
+  onRangoFechaChange, toggleFechaChip, actualizarHoraChips,
+  toggleHoraChip, filtrarFuncionesModal, seleccionarFuncion,
+});

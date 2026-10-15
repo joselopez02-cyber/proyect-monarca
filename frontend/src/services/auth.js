@@ -5,6 +5,10 @@
 
 'use strict';
 
+import { API_BASE, setJwtToken, testConexion } from './api.js';
+import { showAlert } from '../utils/utils.js';
+import { cargarDashboard } from '../pages/admin/admin.js';
+
 // ── Constantes ───────────────────────────────────────────────
 const AUTH_TIMEOUT_MS   = 12_000;
 const CONFIG_TIMEOUT_MS = 10_000;
@@ -59,10 +63,10 @@ async function _authPost(endpoint, body, timeoutMs = AUTH_TIMEOUT_MS) {
  * @param {object} data - Respuesta del servidor tras autenticar
  */
 function _persistirSesion(data) {
-  JWT_TOKEN = data.token;
+  setJwtToken(data.token);
 
   const session = {
-    monarca_token:     JWT_TOKEN,
+    monarca_token:     data.token,
     monarca_token_exp: String(Date.now() + SESSION_TTL_MS),
     monarca_email:     data.email      || '',
     monarca_rol:       data.rol        || 'USER',
@@ -128,8 +132,11 @@ function _mensajeError(err) {
 
 // ── Login ────────────────────────────────────────────────────
 
-async function handleLogin(e) {
+export async function handleLogin(e) {
   e.preventDefault();
+
+  const errorEl = document.getElementById('loginError');
+  if (errorEl) errorEl.style.display = 'none';
 
   const username = document.getElementById('l_user')?.value.trim();
   const password = document.getElementById('l_pass')?.value;
@@ -138,18 +145,24 @@ async function handleLogin(e) {
     const data = await _authPost('/api/auth/login', { username, password });
 
     _persistirSesion(data);
+    window.dispatchEvent(new Event('monarca:authenticated'));
     _mostrarUsuarioSidebar(data);
     _ocultarLoginScreen();
     iniciarApp();
     showAlert('Autenticación exitosa.');
   } catch (err) {
-    showAlert(_mensajeError(err), 'error');
+    const message = _mensajeError(err);
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+    showAlert(message, 'error');
   }
 }
 
 // ── Registro ─────────────────────────────────────────────────
 
-async function handleRegister(e) {
+export async function handleRegister(e) {
   e.preventDefault();
 
   const errEl = document.getElementById('registerError');
@@ -178,6 +191,8 @@ async function handleRegister(e) {
     const data = await _authPost('/api/auth/register', payload);
 
     _persistirSesion(data);
+    window.dispatchEvent(new Event('monarca:authenticated'));
+    _mostrarUsuarioSidebar(data);
     _ocultarLoginScreen();
     iniciarApp();
     showAlert(`¡Cuenta creada! Bienvenido, ${data.username}.`);
@@ -188,7 +203,7 @@ async function handleRegister(e) {
 
 // ── Logout ───────────────────────────────────────────────────
 
-function logout() {
+export function logout() {
   sessionStorage.clear();
   SESSION_KEYS.forEach(k => localStorage.removeItem(k));
   location.reload();
@@ -196,7 +211,7 @@ function logout() {
 
 // ── Tabs del formulario de autenticación ─────────────────────
 
-function switchAuthTab(tab, btn) {
+export function switchAuthTab(tab, btn) {
   document.querySelectorAll('.auth-tab').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
 
@@ -368,3 +383,7 @@ function copiarToken() {
       window.getSelection().addRange(range);
     });
 }
+
+Object.assign(window, {
+  logout, switchAuthTab, switchAuthConfigTab, obtenerTokenConfig, copiarToken,
+});
