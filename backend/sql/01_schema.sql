@@ -137,3 +137,11 @@ CREATE INDEX IF NOT EXISTS idx_trans_cliente    ON transaccion(cust_id);
 -- KAN-18: un gestor es un usuario con rol GESTOR asignado a una sucursal
 ALTER TABLE gestor ADD COLUMN IF NOT EXISTS usuario_id BIGINT REFERENCES usuario(usuario_id) ON DELETE CASCADE;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_gestor_usuario ON gestor(usuario_id);
+
+-- KAN-28: la reserva guarda su total y las sillas (para el historial aunque luego se liberen) y cuándo se creó.
+-- El cliente queda ligado a la cuenta (usuario) que lo registró: así cada persona solo ve y reserva con lo suyo.
+ALTER TABLE reserva ADD COLUMN IF NOT EXISTS total NUMERIC(10,2);
+ALTER TABLE reserva ADD COLUMN IF NOT EXISTS sillas_texto VARCHAR(500);
+ALTER TABLE reserva ADD COLUMN IF NOT EXISTS creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE cliente ADD COLUMN IF NOT EXISTS usuario_id BIGINT REFERENCES usuario(usuario_id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_usuario ON cliente(usuario_id);

@@ -6,6 +6,9 @@ export const MARGEN_MIN = 15;
 export const MAX_DIAS = 31;      // máximo de días por rango
 export const MAX_HORARIOS = 8;   // máximo de horarios por día
 
+// Las funciones se guardan con fecha y hora de Colombia; el servidor puede estar en otra zona horaria
+export const ZONA = process.env.ZONA_HORARIA || 'America/Bogota';
+
 const UN_DIA_MS = 24 * 60 * 60 * 1000;
 
 // Fecha en formato AAAA-MM-DD y que exista de verdad (rechaza 2026-02-31)
