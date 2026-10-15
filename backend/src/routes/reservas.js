@@ -136,4 +136,62 @@ router.post('/', requireAuth, async (req, res) => {
   res.status(201).json(aReserva(rows[0]));
 });
 
+// KAN-29 (HU16): cancelar una reserva y liberar sus sillas.
+// Todo en una sola transacción: la reserva se bloquea (FOR UPDATE), sus sillas vuelven a DISPONIBLE
+// y los asientos se devuelven a la función (se cuentan las sillas que de verdad se liberaron).
+//   modo 'cancelar' (PATCH): la reserva queda CANCELADA y se conserva en el historial.
+//   modo 'eliminar' (DELETE): la reserva se borra (como pide el ticket).
+// Solo la cancela su dueño o un ADMIN. Una función que ya empezó solo la puede cancelar un ADMIN.
+async function liberarReserva(req, id, modo) {
+  await conTransaccion(async (client) => {
+    const { rows } = await client.query(
+      `SELECT r.res_code, r.estado, r.funcion_id, c.usuario_id AS duenio_id,
+              CASE WHEN f.funcion_id IS NULL THEN FALSE
+                   ELSE ((f.fecha || ' ' || f.hora_inicio)::timestamp < (NOW() AT TIME ZONE $2)) END AS ya_empezo
+         FROM reserva r
+         LEFT JOIN cliente c ON c.cust_id = r.cust_id
+         LEFT JOIN funcion f ON f.funcion_id = r.funcion_id
+        WHERE r.res_code = $1
+          FOR UPDATE OF r`, [id, ZONA]);
+    const r = rows[0];
+    if (!r) throw new HttpError(404, `Reserva no encontrada con id: ${id}`);
+    if (!esAdmin(req) && Number(r.duenio_id) !== req.user.usuarioId) {
+      throw new HttpError(403, 'Esta reserva es de otro cliente.');
+    }
+    if (modo === 'cancelar' && r.estado === 'CANCELADA') {
+      throw new HttpError(409, 'La reserva ya estaba cancelada.');
+    }
+    if (r.estado !== 'CANCELADA' && r.ya_empezo && !esAdmin(req)) {
+      throw new HttpError(409, 'Esta función ya comenzó; la reserva ya no se puede cancelar.');
+    }
+
+    const { rowCount } = await client.query(
+      `UPDATE silla SET estado = 'DISPONIBLE', reserva_id = NULL, bloqueado_por = NULL, bloqueado_en = NULL
+        WHERE reserva_id = $1`, [id]);
+    if (rowCount > 0 && r.funcion_id !== null) {
+      await client.query(
+        'UPDATE funcion SET asientos_disponibles = LEAST(asientos_disponibles + $1, capacidad_total) WHERE funcion_id = $2',
+        [rowCount, r.funcion_id]);
+    }
+
+    if (modo === 'eliminar') await client.query('DELETE FROM reserva WHERE res_code = $1', [id]);
+    else await client.query("UPDATE reserva SET estado = 'CANCELADA' WHERE res_code = $1", [id]);
+  });
+}
+
+// Cancelar conservando el registro (lo usa el botón Cancelar del frontend)
+router.patch('/:id/cancelar', requireAuth, async (req, res) => {
+  const id = parseId(req.params.id);
+  await liberarReserva(req, id, 'cancelar');
+  const { rows } = await pool.query(`${SELECT_RESERVA} WHERE r.res_code = $1`, [id]);
+  res.json(aReserva(rows[0]));
+});
+
+// KAN-29: DELETE /api/reservas/{id} -> elimina la reserva y las sillas vuelven a estar disponibles
+router.delete('/:id', requireAuth, async (req, res) => {
+  const id = parseId(req.params.id);
+  await liberarReserva(req, id, 'eliminar');
+  res.status(204).end();
+});
+
 export default router;
