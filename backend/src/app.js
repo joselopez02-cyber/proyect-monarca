@@ -14,6 +14,7 @@ import sillasRouter from './routes/sillas.js';
 import clientesRouter from './routes/clientes.js';
 import reservasRouter from './routes/reservas.js';
 import pagosRouter from './routes/pagos.js';
+import transaccionesRouter from './routes/transacciones.js';
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/sillas', sillasRouter);
 app.use('/api/clientes', clientesRouter);
 app.use('/api/reservas', reservasRouter);
 app.use('/api/pagos', pagosRouter);
+app.use('/api/transacciones', transaccionesRouter);
 
 app.use(notFound);
 app.use(errorHandler);
