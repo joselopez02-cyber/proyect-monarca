@@ -9,18 +9,18 @@
   </div>
   <nav class="nav-menu">
     <div class="nav-section-label">General</div>
-    <div class="nav-item active" data-view="dashboard" onclick="switchView('dashboard', this)">Panel Principal</div>
-    <div class="nav-item" data-view="cartelera" onclick="switchView('cartelera', this)">Taquilla</div>
+    <div class="nav-item active" data-view="dashboard">Panel Principal</div>
+    <div class="nav-item" data-view="cartelera">Taquilla</div>
     <div class="nav-section-label" data-rol="ADMIN">Administración</div>
-    <div class="nav-item" data-view="peliculas" data-rol="ADMIN" onclick="switchView('peliculas', this)">Catálogo Películas</div>
-    <div class="nav-item" data-view="salas" data-rol="ADMIN" onclick="switchView('salas', this)">Programar Salas</div>
-    <div class="nav-item" data-view="funciones" data-rol="ADMIN" onclick="switchView('funciones', this)">Programar Funciones</div>
+    <div class="nav-item" data-view="peliculas" data-rol="ADMIN">Catálogo Películas</div>
+    <div class="nav-item" data-view="salas" data-rol="ADMIN">Programar Salas</div>
+    <div class="nav-item" data-view="funciones" data-rol="ADMIN">Programar Funciones</div>
     <div class="nav-section-label">Reportes</div>
-    <div class="nav-item" data-view="reservas" onclick="switchView('reservas', this)">Historial</div>
-    <div class="nav-item" data-view="sucursales" data-rol="ADMIN" onclick="switchView('sucursales', this)">Cines &amp;Sucursales</div>
-    <div class="nav-item" data-view="usuarios" data-rol="ADMIN" onclick="switchView('usuarios', this)">Gestión de Usuarios</div>
+    <div class="nav-item" data-view="reservas">Historial</div>
+    <div class="nav-item" data-view="sucursales" data-rol="ADMIN">Cines &amp;Sucursales</div>
+    <div class="nav-item" data-view="usuarios" data-rol="ADMIN">Gestión de Usuarios</div>
     <div style="height: 24px;"></div>
-    <div class="nav-item" style="color: var(--c-red);" onclick="logout()">Cerrar Sesión</div>
+    <div class="nav-item" data-action="logout" style="color: var(--c-red);">Cerrar Sesión</div>
   </nav>
   <div class="sidebar-footer">
     <div class="sidebar-user">
@@ -30,7 +30,7 @@
         <div id="sidebar-rol-label" style="font-size:10px;color:var(--c-muted);">—</div>
       </div>
     </div>
-    <div style="margin-top:8px;display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="switchView('config',null)">
+    <div data-view="config" style="margin-top:8px;display:flex;align-items:center;gap:6px;cursor:pointer;">
       <span style="font-size:10px;color:var(--c-muted);">⚙ Configuración</span>
     </div>
   </div>

@@ -5,11 +5,14 @@
                reservas.js, silla-lock.js
    ============================================================ */
 
+import { API_BASE, api, testConexion } from '../../services/api.js';
+import { esc, escHtml, showAlert, tipoLabel } from '../../utils/utils.js';
+import { funcionesCache, peliculasCache, salasCache, usuariosCache } from '../shared-state.js';
+import { cargarCartelera } from '../cartelera/cartelera.js';
+import { cargarReservas } from '../reservas/reservas.js';
+import { cargarFunciones } from '../funciones/funciones.js';
+
 // ── Estado global compartido ─────────────────────────────────
-let peliculasCache   = [];
-let funcionesCache   = [];
-let salasCache       = [];
-let usuariosCache    = [];
 let seleccionadasIds = new Set();
 let mdgSeleccionadas = new Set();
 let mdgGrupoKeyActual = null;
@@ -18,7 +21,7 @@ let _filtroSucCineId = null;
 let _posterBase64    = null;
 
 // ── Navegación de vistas ─────────────────────────────────────
-function switchView(viewId, element) {
+export function switchView(viewId, element) {
   const _mc = document.querySelector('.main-content');
   if (_mc) _mc.scrollTop = 0;
   document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -51,7 +54,7 @@ function syncBottomNav(viewId) {
 }
 
 // ── Dashboard ────────────────────────────────────────────────
-async function cargarDashboard() {
+export async function cargarDashboard() {
   try {
     const [pelis, funcs, clis, resv] = await Promise.all([
       api('/peliculas').catch(() => []), api('/funciones').catch(() => []),
@@ -69,7 +72,7 @@ async function cargarPeliculas() {
   const tbody = document.getElementById('peliculasTable');
   tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Cargando catálogo...</td></tr>';
   try {
-    peliculasCache = await api('/peliculas');
+    peliculasCache.splice(0, peliculasCache.length, ...await api('/peliculas'));
     tbody.innerHTML = peliculasCache.map(p => `
       <tr>
         <td class="mono text-muted">#${p.movieId}</td>
@@ -235,7 +238,7 @@ function renderSalaPreview() {
 async function cargarSalasAdmin() {
   try {
     const [salas, sucursales] = await Promise.all([api('/salas'), api('/sucursales').catch(() => [])]);
-    salasCache = salas;
+    salasCache.splice(0, salasCache.length, ...salas);
     const selSuc = document.getElementById('s_sucursal');
     if (selSuc) selSuc.innerHTML = '<option value="">-- Seleccionar sucursal --</option>' +
       sucursales.map(s => `<option value="${s.branId}">${s.branLocation || 'Sucursal #' + s.branId}</option>`).join('');
@@ -424,15 +427,15 @@ async function cargarUsuarios() {
   const tbody = document.getElementById('tbl-usuarios');
   tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Cargando…</td></tr>';
   try {
-    usuariosCache = await api('/usuarios');
+    usuariosCache.splice(0, usuariosCache.length, ...await api('/usuarios'));
     tbody.innerHTML = usuariosCache.map(u => `
       <tr>
         <td class="mono text-muted">#${u.usuarioId}</td>
-        <td style="font-weight:600;">@${u.username}</td>
-        <td>${u.email || '—'}</td>
-        <td class="mono">${u.cedula || '—'}</td>
-        <td>${u.telefono || '—'}</td>
-        <td><span class="badge ${u.rol === 'ADMIN' ? 'badge-red' : 'badge-blue'}">${u.rol}</span></td>
+        <td style="font-weight:600;">@${escHtml(u.username || '')}</td>
+        <td>${escHtml(u.email || 'Sin registrar')}</td>
+        <td class="mono">${escHtml(u.cedula || 'Sin registrar')}</td>
+        <td>${escHtml(u.telefono || 'Sin registrar')}</td>
+        <td><span class="badge ${u.rol === 'ADMIN' ? 'badge-red' : 'badge-blue'}">${escHtml(u.rol || '')}</span></td>
         <td><span class="badge ${u.activo !== false ? 'badge-green' : 'badge-red'}">${u.activo !== false ? 'Activo' : 'Inactivo'}</span></td>
         <td>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -443,7 +446,7 @@ async function cargarUsuarios() {
         </td>
       </tr>`).join('');
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error: ${escHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -454,13 +457,13 @@ async function verDetalleUsuario(id) {
   document.getElementById('mu_titulo').textContent = '@' + (u.username || '—');
   document.getElementById('mu_contenido').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;">
-      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Nombre completo</div><div style="font-weight:600;">${u.nombreCompleto || '—'}</div></div>
-      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Email</div><div>${u.email || '—'}</div></div>
-      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Cédula</div><div class="mono">${u.cedula || '—'}</div></div>
-      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Teléfono</div><div>${u.telefono || '—'}</div></div>
-      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Dirección</div><div>${u.direccion || '—'}</div></div>
+      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Nombre completo</div><div style="font-weight:600;">${escHtml(u.nombreCompleto || 'Sin registrar')}</div></div>
+      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Email</div><div>${escHtml(u.email || 'Sin registrar')}</div></div>
+      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Cédula</div><div class="mono">${escHtml(u.cedula || 'Sin registrar')}</div></div>
+      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Teléfono</div><div>${escHtml(u.telefono || 'Sin registrar')}</div></div>
+      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Dirección</div><div>${escHtml(u.direccion || 'Sin registrar')}</div></div>
       <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Edad</div><div>${edad !== null ? edad + ' años' : '—'}</div></div>
-      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Rol</div><div><span class="badge ${u.rol === 'ADMIN' ? 'badge-red' : 'badge-blue'}">${u.rol}</span></div></div>
+      <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Rol</div><div><span class="badge ${u.rol === 'ADMIN' ? 'badge-red' : 'badge-blue'}">${escHtml(u.rol || '')}</span></div></div>
       <div><div style="font-size:10px;color:var(--c-muted);margin-bottom:2px;">Estado</div><div><span class="badge ${u.activo !== false ? 'badge-green' : 'badge-red'}">${u.activo !== false ? 'Activo' : 'Inactivo'}</span></div></div>
     </div>`;
   document.getElementById('mu_acciones').innerHTML = `
@@ -590,7 +593,7 @@ async function eliminarGrupo(ids) {
   cargarFunciones();
 }
 
-function renderFuncionesAgrupadas(funciones) {
+export function renderFuncionesAgrupadas(funciones) {
   const container = document.getElementById('funcionesAgrupadas');
   if (!container) return;
   seleccionadasIds.clear(); actualizarBatchUI(); _gruposActuales = {};
@@ -693,7 +696,7 @@ async function eliminarSeleccionadasMDG() {
 async function recargarGrupoEnModal(grupoKey) {
   try {
     const funciones = await api('/funciones');
-    funcionesCache = funciones;
+    funcionesCache.splice(0, funcionesCache.length, ...funciones);
     const grupos = {};
     funciones.forEach(f => {
       const key = `${f.sala?.salaId || 0}_${f.pelicula?.movieId || 0}`;
@@ -827,3 +830,21 @@ async function eliminarEntidad(path, callback) {
   try { await api(path, 'DELETE'); showAlert('Eliminado correctamente.'); if (callback) callback(); }
   catch (e) { showAlert('Error al eliminar: ' + e.message, 'error'); }
 }
+
+Object.assign(window, {
+  switchView, cargarDashboard, cargarPeliculas, cargarEdicionPelicula,
+  mostrarPosterPreview, limpiarPosterForm, handlePosterFile, handlePosterDrop,
+  eliminarPosterPelicula, cancelarEdicionPelicula, savePelicula,
+  calcularCapacidad, renderSalaPreview, cargarSalasAdmin, filtrarTablaSalas,
+  cargarEdicionSala, cancelarEdicionSala, saveSala, cargarCines, editarCine,
+  crearCine, cargarSucursales, verSucursalesDeCine, crearSucursal,
+  cargarUsuarios, verDetalleUsuario, cerrarModalUsuario, abrirModalNuevoUsuario,
+  cerrarModalNuevoUsuario, abrirEditarUsuario, guardarNuevoUsuario,
+  cambiarRolUsuario, eliminarUsuario, toggleGrupo, actualizarBatchUI,
+  eliminarSeleccionadas, eliminarGrupo, renderFuncionesAgrupadas,
+  toggleMDGSeleccion, toggleTodosMDG, eliminarSeleccionadasMDG,
+  recargarGrupoEnModal, abrirDetallesGrupo, cerrarModalDetalles,
+  filtrarSalasMDG, guardarEdicionGrupo, abrirEditFuncionInd,
+  cerrarEditFuncionInd, filtrarSalasEFI, guardarEditFuncionInd,
+  eliminarEntidad,
+});

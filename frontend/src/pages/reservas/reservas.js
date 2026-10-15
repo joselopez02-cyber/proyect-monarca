@@ -1,62 +1,72 @@
-// Refresca la cartelera solo si la vista está activa
-function _refrescarCarteleraCondicional() {
-  if (document.getElementById('view-cartelera')?.classList.contains('active')) {
-    cargarCartelera();
-  }
-}
 /* ============================================================
    reservas.js — Taquilla, mapa de sillas, pago y historial
    Depende de: api.js, utils.js, silla-lock.js
    ============================================================ */
 
+import { api } from '../../services/api.js';
+import { esEmail, METODO_LABEL, showAlert, tipoLabel } from '../../utils/utils.js';
+import { funcionesCache, usuariosCache } from '../shared-state.js';
+import { reservationState } from '../reservation-state.js';
+import { cargarCartelera } from '../cartelera/cartelera.js';
+import { limpiarBloqueoLocal } from '../sillas/silla-lock.js';
+
 // ── Estado global de la reserva activa ──────────────────────
-let seleccionActual  = [];
-let funcionActual    = null;
-let ocupadasTemp     = [];
 let reservasBaseCache = [];
 let _reservasCacheDirty = false; // set true by other views after mutations
 
+function _refrescarCarteleraCondicional() {
+  if (document.getElementById('view-cartelera')?.classList.contains('active')) {
+    cargarCartelera();
+  }
+}
+
 // ── Abrir taquilla para una función ─────────────────────────
-async function abrirTaquilla(fId) {
-  funcionActual = funcionesCache.find(f => f.funcionId == fId);
-  if (!funcionActual || !funcionActual.pelicula) {
+export async function abrirTaquilla(fId) {
+  reservationState.pendingReservationCode = null;
+  reservationState.currentFunction = funcionesCache.find(f => f.funcionId == fId);
+  if (!reservationState.currentFunction || !reservationState.currentFunction.pelicula) {
     showAlert('No se encontró la función.', 'error');
     return;
   }
 
+  const funcionActual = reservationState.currentFunction;
   document.getElementById('m_tituloPeli').innerText  = funcionActual.pelicula.nombre;
   document.getElementById('m_infoFuncion').innerText =
     `${funcionActual.sala?.nombre || ''} — ${funcionActual.sala?.tipo || ''} | ${funcionActual.fecha || ''} ${funcionActual.horaInicio || ''}`;
   document.getElementById('r_precioBase').innerText  = `$${funcionActual.precioBoleto.toLocaleString()} COP`;
   document.getElementById('r_funcionId').value       = funcionActual.funcionId;
 
-  seleccionActual = [];
+  reservationState.selectedSeats.length = 0;
   document.getElementById('r_metodoPago').value = '';
   document.querySelectorAll('.pay-method-btn').forEach(b => b.classList.remove('selected'));
   actualizarTotales();
 
   try {
-    ocupadasTemp = await api(`/sillas/funcion/${fId}`);
+    const respuesta = await api(`/sillas/funcion/${fId}`);
+    if (!Array.isArray(respuesta.sillas)) {
+      throw new Error('La respuesta de la API no incluye la lista de sillas.');
+    }
+    reservationState.occupiedSeats = respuesta.sillas;
     dibujarMapa();
     document.getElementById('paso1Modal').style.display = 'flex';
     document.getElementById('paso2Modal').style.display = 'none';
     document.getElementById('modalReserva').style.display = 'flex';
   } catch (e) {
-    showAlert('Error al cargar la ocupación de la sala.', 'error');
+    showAlert(`Error al cargar las sillas: ${e.message}`, 'error');
   }
 }
 
 // ── Cerrar modal de reserva ──────────────────────────────────
 function cerrarModal() {
-  if (_bloqueoActivo && funcionActual && seleccionActual.length > 0) {
+  if (reservationState.lockActive && reservationState.currentFunction && reservationState.selectedSeats.length > 0) {
     const clienteKey = sessionStorage.getItem('monarca_username') || '';
     api('/sillas/liberar', 'DELETE', {
-      funcionId: funcionActual.funcionId,
-      codigos:   seleccionActual,
+      funcionId: reservationState.currentFunction.funcionId,
+      codigos:   reservationState.selectedSeats,
       clienteKey,
     }).catch(() => {});
   }
-  _limpiarBloqueoLocal();
+  limpiarBloqueoLocal();
 
   document.getElementById('modalReserva').style.display = 'none';
   ['r_cliDoc', 'r_cliNom', 'r_cliTel', 'r_cliDir'].forEach(id => {
@@ -72,16 +82,16 @@ function cerrarModal() {
 }
 
 // ── Dibujar mapa de asientos ─────────────────────────────────
-function dibujarMapa() {
+export function dibujarMapa() {
   const cont = document.getElementById('mapaContenedor');
   cont.innerHTML = '';
-  if (!ocupadasTemp.length) {
+  if (!reservationState.occupiedSeats.length) {
     cont.innerHTML = '<div class="empty-state">No hay asientos registrados para esta función.</div>';
     return;
   }
 
   const porFila = new Map();
-  ocupadasTemp.forEach(s => {
+  reservationState.occupiedSeats.forEach(s => {
     if (!porFila.has(s.fila)) porFila.set(s.fila, []);
     porFila.get(s.fila).push(s);
   });
@@ -170,24 +180,25 @@ function dibujarMapa() {
 
 // ── Toggle de selección de asiento ──────────────────────────
 function toggleSeleccion(el, id) {
-  const idx = seleccionActual.indexOf(id);
+  const selectedSeats = reservationState.selectedSeats;
+  const idx = selectedSeats.indexOf(id);
   if (idx > -1) {
-    seleccionActual.splice(idx, 1);
+    selectedSeats.splice(idx, 1);
     el.classList.remove('selected');
   } else {
-    if (seleccionActual.length >= 4) {
+    if (selectedSeats.length >= 4) {
       showAlert('Máximo 4 entradas permitidas por pago.', 'error');
       return;
     }
-    seleccionActual.push(id);
+    selectedSeats.push(id);
     el.classList.add('selected');
   }
   actualizarTotales();
 
   const bar = document.getElementById('seat-info-bar');
   if (!bar) return;
-  if (seleccionActual.length === 0) { bar.style.display = 'none'; return; }
-  const lastId = seleccionActual[seleccionActual.length - 1];
+  if (selectedSeats.length === 0) { bar.style.display = 'none'; return; }
+  const lastId = selectedSeats[selectedSeats.length - 1];
   const lastEl = document.querySelector(`.seat[data-codigo="${lastId}"]`);
   if (!lastEl) { bar.style.display = 'none'; return; }
   const vis      = lastEl.dataset.vis;
@@ -202,7 +213,9 @@ function toggleSeleccion(el, id) {
   bar.style.display = 'flex';
 }
 
-function actualizarTotales() {
+export function actualizarTotales() {
+  const funcionActual = reservationState.currentFunction;
+  const seleccionActual = reservationState.selectedSeats;
   if (!funcionActual) return;
   const num = seleccionActual.length;
   const tot = num * funcionActual.precioBoleto;
@@ -234,6 +247,8 @@ function seleccionarMetodoPago(btn) {
 
 // ── Procesar pago y crear reserva ────────────────────────────
 async function procesarPago() {
+  const funcionActual = reservationState.currentFunction;
+  const seleccionActual = reservationState.selectedSeats;
   if (seleccionActual.length === 0) { showAlert('Debes seleccionar asientos en el mapa.', 'error'); return; }
   const doc = document.getElementById('r_cliDoc').value.trim();
   if (!doc) { showAlert('La cédula del cliente es obligatoria.', 'error'); return; }
@@ -260,7 +275,7 @@ async function procesarPago() {
   if (metodoPagoUI === 'PSE') {
     if (!(document.getElementById('p_banco')?.value || '').trim()) { showAlert('Selecciona tu banco para continuar con PSE.', 'error'); return; }
     const em = (document.getElementById('p_email')?.value || '').trim();
-    if (!em || !em.includes('@')) { showAlert('Ingresa un correo electrónico válido para PSE.', 'error'); return; }
+    if (!esEmail(em)) { showAlert('Ingresa un correo válido con dominio y extensión, por ejemplo usuario@gmail.com o usuario@empresa.co.', 'error'); return; }
   }
 
   const username      = sessionStorage.getItem('monarca_username') || '';
@@ -268,68 +283,129 @@ async function procesarPago() {
   const nombreCliente = username || nomFormulario;
   if (!nombreCliente) { showAlert('No se pudo identificar el cliente.', 'error'); return; }
 
-  let custId = null;
+  let rCode = reservationState.pendingReservationCode;
   try {
-    const clientes = await api('/clientes');
-    const existente = clientes.find(c => c.numeroCliente === doc || c.custId == doc);
-    if (existente) {
-      custId = existente.custId;
-      if (existente.nombreCliente !== nombreCliente) {
-        await api(`/clientes/${custId}`, 'PUT', { ...existente, nombreCliente }).catch(() => {});
+    if (!rCode) {
+      let custId;
+      try {
+        const clientes = await api('/clientes');
+        const existente = clientes.find(c => c.numeroCliente === doc || c.custId == doc);
+        if (existente) {
+          custId = existente.custId;
+          if (existente.nombreCliente !== nombreCliente) {
+            await api(`/clientes/${custId}`, 'PUT', { ...existente, nombreCliente }).catch(() => {});
+          }
+        } else {
+          const nuevo = await api('/clientes', 'POST', {
+            nombreCliente,
+            numeroCliente: doc,
+            direccionCliente: document.getElementById('r_cliDir').value.trim() || null,
+          });
+          custId = nuevo.custId;
+        }
+      } catch (error) {
+        showAlert(`Error al registrar el cliente: ${error.message}`, 'error');
+        return;
       }
-    } else {
-      const nuevo = await api('/clientes', 'POST', {
-        nombreCliente,
-        numeroCliente:    doc,
-        direccionCliente: document.getElementById('r_cliDir').value.trim() || null,
+
+      const reservaResp = await api('/reservas', 'POST', {
+        custId,
+        funcionId: Number(document.getElementById('r_funcionId').value),
+        sillas: seleccionActual,
+        fecha: funcionActual.fecha || '',
+        tiempo: funcionActual.horaInicio || '',
       });
-      custId = nuevo.custId;
-    }
-  } catch (_) { showAlert('Error al registrar el cliente.', 'error'); return; }
-
-  const payload = {
-    custId,
-    funcionId: Number(document.getElementById('r_funcionId').value),
-    sillas:    seleccionActual,
-    fecha:     funcionActual.fecha || '',
-    tiempo:    funcionActual.horaInicio || '',
-  };
-
-  try {
-    const reservaResp = await api('/reservas', 'POST', payload);
-    const rCode = reservaResp?.resCode || reservaResp?.id || null;
-
-    if (rCode && custId) {
-      const ultimos4 = metodoPagoUI === 'TARJETA'
-        ? (document.getElementById('t_numero')?.value || '').replace(/\s/g, '').slice(-4)
-        : null;
-      const transBody = {
-        tipoPago:   tipoPagoBackend,
-        pagoTotal:  seleccionActual.length * (funcionActual?.precioBoleto || 0),
-        estadoPago: 'SIMULADO',
-        referencia: 'SIM-' + Date.now(),
-        fechaTrans: new Date().toISOString().split('T')[0],
-        ...(ultimos4 ? { ultimos4 } : {}),
-      };
-      api(`/transacciones?custId=${custId}&resCode=${rCode}`, 'POST', transBody)
-        .then(() => console.log('[Monarca] Transaccion persistida'))
-        .catch(err => console.warn('[Monarca] Transaccion no guardada:', err.message));
+      rCode = reservaResp?.resCode || reservaResp?.id;
+      if (!rCode) throw new Error('La reserva se creó sin devolver un número de ticket.');
+      reservationState.pendingReservationCode = rCode;
+      limpiarBloqueoLocal();
     }
 
-    showAlert(`¡Pago con ${METODO_LABEL[tipoPagoBackend] || tipoPagoBackend} procesado!`);
-    _limpiarBloqueoLocal();
+    const pago = await api('/pagos/procesar', 'POST', {
+      resCode: rCode,
+      tipoPago: tipoPagoBackend,
+      ...(metodoPagoUI === 'TARJETA'
+        ? { numeroTarjeta: document.getElementById('t_numero').value.replace(/\s/g, '') }
+        : {}),
+    });
+    if (pago.estadoPago !== 'APROBADO' || pago.estadoReserva !== 'CONFIRMADA') {
+      showAlert(pago.mensaje || 'El pago fue rechazado. La reserva sigue pendiente; puedes intentarlo de nuevo.', 'error');
+      return;
+    }
+
+    showAlert(`Pago aprobado. Ticket TK-${rCode} confirmado · ${METODO_LABEL[tipoPagoBackend] || tipoPagoBackend}.`);
+    reservationState.pendingReservationCode = null;
+    reservationState.selectedSeats.length = 0;
+    limpiarBloqueoLocal();
     cerrarModal();
     _refrescarCarteleraCondicional();
     if (document.getElementById('view-reservas')?.classList.contains('active')) {
       cargarReservas();
     }
   } catch (e) {
-    showAlert('Error al procesar la reserva: ' + e.message, 'error');
+    if (rCode) {
+      try {
+        const reservaActual = await api(`/reservas/${rCode}`);
+        if (reservaActual.estado === 'CONFIRMADA') {
+          reservationState.pendingReservationCode = null;
+          reservationState.selectedSeats.length = 0;
+          limpiarBloqueoLocal();
+          cerrarModal();
+          showAlert(`El pago fue aprobado. Ticket TK-${rCode} confirmado.`);
+          cargarReservas();
+          return;
+        }
+      } catch (reconciliationError) {
+        console.warn(`No se pudo consultar el estado de TK-${rCode}:`, reconciliationError.message);
+      }
+    }
+    showAlert(`La reserva${rCode ? ` TK-${rCode}` : ''} sigue pendiente: ${e.message}. Puedes reintentar el pago desde el historial.`, 'error');
+  }
+}
+
+async function completarPagoPendiente(resCode) {
+  try {
+    const reserva = await api(`/reservas/${resCode}`);
+    if (reserva.estado !== 'PENDIENTE') {
+      showAlert(`El ticket TK-${resCode} ya no está pendiente.`, 'error');
+      await cargarReservas();
+      return;
+    }
+    const sillas = Array.isArray(reserva.sillas) ? reserva.sillas : [];
+    if (!sillas.length || !reserva.funcionId) {
+      throw new Error('La reserva no tiene función o sillas para completar el pago.');
+    }
+
+    reservationState.pendingReservationCode = reserva.resCode;
+    reservationState.selectedSeats.splice(0, reservationState.selectedSeats.length, ...sillas);
+    reservationState.currentFunction = {
+      funcionId: reserva.funcionId,
+      fecha: reserva.fecha,
+      horaInicio: reserva.tiempo,
+      precioBoleto: reserva.total / sillas.length,
+      pelicula: { nombre: reserva.peliculaNombre },
+      sala: { nombre: reserva.salaNombre },
+    };
+    document.getElementById('m_tituloPeli').textContent = reserva.peliculaNombre || 'Completar pago';
+    document.getElementById('m_infoFuncion').textContent =
+      `${reserva.salaNombre || ''} · ${reserva.fecha || ''} ${reserva.tiempo || ''} · ${sillas.join(', ')}`;
+    document.getElementById('r_funcionId').value = reserva.funcionId;
+    document.getElementById('r_cliDoc').value = reserva.contNum || '';
+    document.getElementById('r_cliNom').value = reserva.nombre || '';
+    document.getElementById('r_sillasSel').textContent = sillas.join(', ');
+    document.getElementById('r_precioBase').textContent =
+      `$${reservationState.currentFunction.precioBoleto.toLocaleString()} COP`;
+    document.getElementById('r_total').textContent = `$${Number(reserva.total).toLocaleString()} COP`;
+    document.getElementById('paso1Modal').style.display = 'none';
+    document.getElementById('paso2Modal').style.display = 'flex';
+    document.getElementById('modalReserva').style.display = 'flex';
+  } catch (error) {
+    showAlert(`No se pudo abrir el pago pendiente: ${error.message}`, 'error');
   }
 }
 
 // ── Historial de reservas ─────────────────────────────────────
-async function cargarReservas() {
+export async function cargarReservas() {
   const tbody = document.getElementById('reservasTable');
   tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--c-muted)">Cargando…</td></tr>';
   try {
@@ -344,6 +420,7 @@ async function cargarReservas() {
     });
     reservasBaseCache = reservas.map(r => {
       const t = transMap[r.resCode];
+      r.sillasSeleccionadas = r.sillas || [];
       if (t) {
         r.metodoPago = t.tipoPago   || r.metodoPago;
         r.estadoPago = t.estadoPago;
@@ -435,8 +512,9 @@ function renderTablaReservas() {
     const badgeCls  = r.estado === 'CONFIRMADA' ? 'badge-green' : r.estado === 'CANCELADA' ? 'badge-red' : 'badge-blue';
     const _metodo   = r.metodoPago || null;
     const metodoHtml = _metodo
-      ? `<span style="background:${MC_COLOR[_metodo] || '#888'};color:#fff;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;">${METODO_LABEL[_metodo] || _metodo}</span>`
-      : `<span style="color:var(--c-muted);font-size:12px">—</span>`;
+      ? `<span style="background:${MC_COLOR[_metodo] || '#888'};color:#fff;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap;">${METODO_LABEL[_metodo] || _metodo}</span>
+         <br><span style="font-size:10px;color:${r.estadoPago === 'APROBADO' ? 'var(--c-green)' : r.estadoPago === 'RECHAZADO' ? 'var(--c-red)' : 'var(--c-muted)'}">${r.estadoPago || 'Pago pendiente'}</span>`
+      : `<span style="color:var(--c-muted);font-size:12px">${r.estado === 'PENDIENTE' ? 'Sin pago' : '—'}</span>`;
 
     return `
       <tr>
@@ -445,6 +523,7 @@ function renderTablaReservas() {
           <div style="display:flex;gap:4px;align-items:center;white-space:nowrap">
             <button class="btn btn-sm" title="Ver detalle" onclick="verDetalleReserva(${r.resCode})" style="padding:5px 9px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
             <button class="btn btn-sm" title="Copiar ticket" onclick="copiarTicket(${r.resCode}, event)" style="padding:5px 9px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            ${r.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-primary" onclick="completarPagoPendiente(${r.resCode})" style="white-space:nowrap">Completar pago</button>` : ''}
             ${r.estado === 'CONFIRMADA' ? `<button class="btn btn-sm btn-danger" onclick="cancelarReserva(${r.resCode})" style="white-space:nowrap">✕ Anular</button>` : ''}
           </div>
         </td>
@@ -494,7 +573,7 @@ function verDetalleReserva(resCode) {
   const _esAdminVista = (sessionStorage.getItem('monarca_rol') || 'USER') === 'ADMIN';
   if (_esAdminVista && (!usuariosCache || !usuariosCache.length)) {
     api('/usuarios').then(data => {
-      usuariosCache = data;
+      usuariosCache.splice(0, usuariosCache.length, ...data);
       const cliDoc     = r.cliente?.numeroCliente || r.contNum || '';
       const cliUsername = r.nombre || r.cliente?.nombreCliente || '';
       const uMatch = data.find(u => u.username === cliUsername || u.cedula === cliDoc);
@@ -642,3 +721,10 @@ function _copiarFallback(texto) {
   }
   document.body.removeChild(ta);
 }
+
+Object.assign(window, {
+  abrirTaquilla, cerrarModal, dibujarMapa, toggleSeleccion,
+  actualizarTotales, seleccionarMetodoPago, procesarPago, cargarReservas,
+  filtrarReservas, limpiarFiltrosReservas, cancelarReserva, completarPagoPendiente,
+  verDetalleReserva, anularDesdeModal, verSillasReserva, copiarTicket,
+});

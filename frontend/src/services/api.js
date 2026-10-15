@@ -3,6 +3,8 @@
    Depende de: utils.js (showAlert), auth.js (logout)
    ============================================================ */
 
+import { showAlert } from '../utils/utils.js';
+
 // ── Configuración de API_BASE ────────────────────────────────
 if (typeof _AZURE_URL === 'undefined') var _AZURE_URL = 'https://monarca-e4cfe8dyfvaddhcj.brazilsouth-01.azurewebsites.net';
 if (typeof _autoBase === 'undefined') var _autoBase = window.location.origin;
@@ -18,7 +20,7 @@ if (typeof _autoBase === 'undefined') var _autoBase = window.location.origin;
 })();
 
 if (typeof _savedBase === 'undefined') var _savedBase = localStorage.getItem('monarca_api_base');
-if (typeof API_BASE === 'undefined') var API_BASE = (_savedBase || _autoBase || _AZURE_URL).replace(/\/api$/, '').replace(/\/$/, '');
+export let API_BASE = (_savedBase || _autoBase || _AZURE_URL).replace(/\/api$/, '').replace(/\/$/, '');
 
 // ── Token JWT ────────────────────────────────────────────────
 let JWT_TOKEN = (function () {
@@ -45,6 +47,10 @@ let JWT_TOKEN = (function () {
   return null;
 })();
 
+export function setJwtToken(token) {
+  JWT_TOKEN = token;
+}
+
 // ── Función principal de fetch ───────────────────────────────
 /**
  * Realiza una petición autenticada a la API REST.
@@ -53,7 +59,7 @@ let JWT_TOKEN = (function () {
  * @param {object|null} body  Cuerpo JSON
  * @returns {Promise<any>}
  */
-async function api(path, method = 'GET', body = null) {
+export async function api(path, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
   if (JWT_TOKEN) headers['Authorization'] = `Bearer ${JWT_TOKEN}`;
 
@@ -135,7 +141,7 @@ function setStatus(ok) {
   }
 }
 
-async function testConexion() {
+export async function testConexion() {
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
@@ -170,3 +176,5 @@ function guardarConfig() {
 
 // Alias para compatibilidad con botón en config
 function guardarApiBase() { guardarConfig(); }
+
+Object.assign(window, { api, testConexion, guardarConfig, guardarApiBase });

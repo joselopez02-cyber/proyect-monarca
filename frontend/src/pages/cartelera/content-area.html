@@ -64,21 +64,11 @@
         <span id="fil_c_conteo" style="font-size:12px;color:var(--c-muted);align-self:center;white-space:nowrap;"></span>
       </div>
 
-      <!-- STATS BAR -->
       <div id="carteleraStats" style="display:none;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:8px 16px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="17" y1="7" x2="22" y2="7"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="2" y1="17" x2="7" y2="17"></line></svg></span>
-              <div id="stat_pelis_count" style="font-size:20px;font-family:var(--f-head);color:var(--c-gold);line-height:1;">0</div>
-            </div>
-          </div>
-          <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:8px 16px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg></span>
-              <div id="stat_generos_count" style="font-size:20px;font-family:var(--f-head);color:var(--c-text);line-height:1;">0</div>
-            </div>
-          </div>
-          <div style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius-sm);padding:8px 16px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-text)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
-              <div id="stat_funciones_count" style="font-size:20px;font-family:var(--f-head);color:var(--c-text);line-height:1;">0</div>
-            </div>
-          </section></div>
+        <div class="card"><span class="mono text-muted">PELÍCULAS</span><strong id="stat_pelis_count">0</strong></div>
+        <div class="card"><span class="mono text-muted">GÉNEROS</span><strong id="stat_generos_count">0</strong></div>
+        <div class="card"><span class="mono text-muted">FUNCIONES</span><strong id="stat_funciones_count">0</strong></div>
+      </div>
+      <div id="carteleraList" class="grid-4"></div>
+    </section>
+  </div>

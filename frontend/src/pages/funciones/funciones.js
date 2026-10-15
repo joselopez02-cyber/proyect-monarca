@@ -3,6 +3,11 @@
    Depende de: api.js, utils.js
    ============================================================ */
 
+import { api } from '../../services/api.js';
+import { showAlert, tipoLabel } from '../../utils/utils.js';
+import { funcionesCache, peliculasCache, salasCache } from '../shared-state.js';
+import { renderFuncionesAgrupadas } from '../admin/admin.js';
+
 const RANGO_HORAS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
 
 function inicializarRangoHorarios() {
@@ -108,12 +113,14 @@ function generarFechasRango(desde, hasta, diasFiltro) {
 }
 
 // ── Cargar funciones (admin view) ─────────────────────────────
-async function cargarFunciones() {
+export async function cargarFunciones() {
   const container = document.getElementById('funcionesAgrupadas');
   if (container) container.innerHTML = '<div class="empty-state">Cargando...</div>';
   try {
     const [funciones, peliculas, salas] = await Promise.all([api('/funciones'), api('/peliculas'), api('/salas')]);
-    funcionesCache = funciones; peliculasCache = peliculas; salasCache = salas;
+    funcionesCache.splice(0, funcionesCache.length, ...funciones);
+    peliculasCache.splice(0, peliculasCache.length, ...peliculas);
+    salasCache.splice(0, salasCache.length, ...salas);
 
     document.getElementById('f_peli').innerHTML =
       '<option value="">-- Selecciona --</option>' +
@@ -315,3 +322,11 @@ async function saveFuncion(e) {
 
 // ── Nota: Las funciones de grupos, modales y batch actions
 // están definidas en admin.js para evitar duplicados.
+
+Object.assign(window, {
+  inicializarRangoHorarios, toggleRangoHora, getHorasSeleccionadas,
+  getDiasSeleccionados, toggleDiaChip, setModoFuncion, calcularRangoPreview,
+  generarFechasRango, cargarFunciones, filtrarTablaFunciones,
+  limpiarFiltrosFunciones, filtrarSalasPorSucursal, cargarEdicionFuncion,
+  cancelarEdicionFuncion, saveFuncion,
+});
