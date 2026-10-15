@@ -13,6 +13,7 @@ import funcionesRouter from './routes/funciones.js';
 import sillasRouter from './routes/sillas.js';
 import clientesRouter from './routes/clientes.js';
 import reservasRouter from './routes/reservas.js';
+import pagosRouter from './routes/pagos.js';
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api/funciones', funcionesRouter);
 app.use('/api/sillas', sillasRouter);
 app.use('/api/clientes', clientesRouter);
 app.use('/api/reservas', reservasRouter);
+app.use('/api/pagos', pagosRouter);
 
 app.use(notFound);
 app.use(errorHandler);
