@@ -1,0 +1,20 @@
+# Despliegue en Render: un solo servicio que compila el frontend y sirve la web y la API juntas.
+# La base de datos está fuera (Neon): su dirección se pega en DATABASE_URL al crear el servicio.
+services:
+  - type: web
+    name: monarca
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm --prefix frontend install --include=dev && npm --prefix frontend run build && npm --prefix backend install
+    startCommand: npm --prefix backend start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DB_SSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
