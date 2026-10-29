@@ -111,6 +111,26 @@ function filtrarCartelera() {
   });
   const conteo = document.getElementById('fil_c_conteo');
   if (conteo) conteo.textContent = visible < _carteleraCards.length ? `${visible} de ${_carteleraCards.length} películas` : '';
+
+  // KAN-49: mensaje cuando ninguna película coincide con la búsqueda
+  const list = document.getElementById('carteleraList');
+  if (list && _carteleraCards.length) {
+    let vacio = document.getElementById('carteleraSinResultados');
+    if (visible === 0) {
+      if (!vacio) {
+        vacio = document.createElement('div');
+        vacio.id = 'carteleraSinResultados';
+        vacio.className = 'empty-state';
+        vacio.style.gridColumn = '1/-1';
+        list.appendChild(vacio);
+      }
+      vacio.textContent = titulo
+        ? `No se encontraron películas que coincidan con "${titulo}".`
+        : 'No se encontraron películas con estos filtros.';
+    } else if (vacio) {
+      vacio.remove();
+    }
+  }
 }
 
 function limpiarFiltrosCartelera() {
