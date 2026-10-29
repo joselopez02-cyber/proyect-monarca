@@ -279,12 +279,13 @@ function mostrarSplash(onDone) {
 // ── Navegación por rol ───────────────────────────────────────
 
 function aplicarNavPorRol() {
-  const isAdmin = (sessionStorage.getItem('monarca_rol') || 'USER') === 'ADMIN';
+  const rol = sessionStorage.getItem('monarca_rol') || 'USER';
+  const isAdmin = rol === 'ADMIN';
 
-  // Mostrar / ocultar ítems según rol
+  // Mostrar / ocultar ítems según rol (data-rol="ADMIN" o data-rol="GESTOR")
   document.querySelectorAll('[data-rol]').forEach(el => {
-    const requiereAdmin = el.getAttribute('data-rol') === 'ADMIN';
-    el.style.display = requiereAdmin && !isAdmin ? 'none' : '';
+    const requerido = el.getAttribute('data-rol');
+    el.style.display = requerido && requerido !== rol ? 'none' : '';
   });
 
   // El dashboard solo es visible para admins
