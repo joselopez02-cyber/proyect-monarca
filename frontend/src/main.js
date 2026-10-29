@@ -15,6 +15,7 @@ import './pages/cartelera/cartelera.js';
 import './pages/sillas/silla-lock.js';
 import './pages/reservas/reservas.js';
 import './pages/funciones/funciones.js';
+import './pages/ocupacion/ocupacion.js';
 import './pages/admin/admin.js';
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -13,6 +13,7 @@ import reservasHtml from './pages/admin/views/view-reservas.html?raw';
 import sucursalesHtml from './pages/admin/views/view-sucursales.html?raw';
 import usuariosHtml from './pages/admin/views/view-usuarios.html?raw';
 import configHtml from './pages/admin/views/view-config.html?raw';
+import ocupacionHtml from './pages/admin/views/view-ocupacion.html?raw';
 
 const router = new Navigo('/', { hash: true });
 const adminViewsHtml = [
@@ -23,6 +24,7 @@ const adminViewsHtml = [
   sucursalesHtml,
   usuariosHtml,
   configHtml,
+  ocupacionHtml,
 ].join('\n');
 
 function render(htmlContent) {
