@@ -8,135 +8,153 @@ import { escHtml, formatFechaCorta, tipoLabel } from '../../utils/utils.js';
 import { funcionesCache } from '../shared-state.js';
 import { abrirTaquilla } from '../reservas/reservas.js';
 
-let _carteleraCards = [];
+// KAN-62: la cartelera se agrupa por categoría (Estrenos, Últimos días, Próximamente). Cada película muestra
+// afiche, género, duración y sus próximos horarios (un clic abre la reserva), y se filtra también por sucursal.
+let _pelis = [];            // [{ peli, funcs }]  funcs = funciones vigentes de esa película, en orden
+const _posters = new Map(); // movieId -> promesa con la URL del afiche (el afiche no viaja en el listado)
+const DIAS_ULTIMOS = 3;       // "Últimos días": su última función cae en los próximos 3 días
+const DIAS_PROXIMAMENTE = 3;  // "Próximamente": su primera función es dentro de más de 3 días
+const MAX_HORARIOS = 4;
+const CATEGORIAS = [
+  { id: 'estrenos',     titulo: 'Estrenos',     sub: 'Funciones disponibles esta semana' },
+  { id: 'ultimos',      titulo: 'Últimos días', sub: 'Sus últimas funciones: no te las pierdas' },
+  { id: 'proximamente', titulo: 'Próximamente', sub: 'Llegan en los próximos días' },
+];
+const enDias = (n) => {
+  const d = new Date(); d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+function categoriaDe(funcs) {
+  if (funcs[0].fecha > enDias(DIAS_PROXIMAMENTE)) return 'proximamente';
+  if (funcs[funcs.length - 1].fecha <= enDias(DIAS_ULTIMOS)) return 'ultimos';
+  return 'estrenos';
+}
 
 // ── Cargar cartelera ─────────────────────────────────────────
 export async function cargarCartelera() {
-  // Solo ejecutar si la vista cartelera está activa
   if (!document.getElementById('view-cartelera')?.classList.contains('active')) return;
   const list = document.getElementById('carteleraList');
-  if (!list) {
-    throw new Error('No se encontró el contenedor de películas de Taquilla.');
-  }
-  list.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Cargando cartelera...</div>';
+  if (!list) throw new Error('No se encontró el contenedor de películas de Taquilla.');
+  list.setAttribute('aria-busy', 'true');
+  list.innerHTML = `<div class="skeleton-grid">${'<div class="skeleton"></div>'.repeat(4)}</div>`;
   try {
-    const funcionesVigentes = await api('/funciones/vigentes');
-    funcionesCache.splice(0, funcionesCache.length, ...funcionesVigentes);
-    const hoyStr = new Date().toISOString().split('T')[0];
-    const funcionesFuturas = funcionesCache.filter(f => f.fecha && f.fecha >= hoyStr);
-    funcionesCache.splice(0, funcionesCache.length, ...funcionesFuturas);
-    list.innerHTML = '';
-    if (!funcionesCache.length) {
-      list.innerHTML = '<div class="empty-state" style="grid-column:1/-1">No hay funciones programadas activas.</div>';
-      return;
+    const [vigentes, peliculas, sucursales] = await Promise.all([api('/funciones/vigentes'), api('/peliculas'), api('/sucursales')]);
+    const sedes = new Map(sucursales.map(s => [Number(s.branId), s.branLocation]));
+    const detalle = new Map(peliculas.map(p => [p.movieId, p]));
+    // La API entrega película y sala resumidas: se completan con género, sinopsis y nombre de la sede
+    const funcs = vigentes.filter(f => f.pelicula && f.sala);
+    for (const f of funcs) {
+      f.pelicula = { ...detalle.get(f.pelicula.movieId), ...f.pelicula };
+      f.sala.sucursal = { branId: f.sala.sucursalId, branLocation: sedes.get(f.sala.sucursalId) || `Sucursal #${f.sala.sucursalId}` };
     }
+    funcionesCache.splice(0, funcionesCache.length, ...funcs);
 
-    const pelisMap = {};
-    for (const f of funcionesCache) {
-      if (!f.pelicula) continue;
-      const mid = f.pelicula.movieId;
-      if (!pelisMap[mid]) pelisMap[mid] = f.pelicula;
+    const porPeli = new Map();
+    for (const f of funcs) {
+      if (!porPeli.has(f.pelicula.movieId)) porPeli.set(f.pelicula.movieId, { peli: f.pelicula, funcs: [] });
+      porPeli.get(f.pelicula.movieId).funcs.push(f);
     }
+    _pelis = [...porPeli.values()];
+    _pelis.forEach(p => p.funcs.sort((a, b) => `${a.fecha} ${a.horaInicio}`.localeCompare(`${b.fecha} ${b.horaInicio}`)));
 
-    _carteleraCards = [];
-    limpiarFiltrosCartelera();
-
-    for (const peli of Object.values(pelisMap)) {
-      const card = document.createElement('div');
-      card.className = 'card funcion-card';
-      const genreKey   = (peli.genero || '').toLowerCase().replace(/[^a-z_]/g, '');
-      const genreLabel = (peli.genero || '—').replace(/_/g, ' ');
-      const clasifClass = 'clasif-' + (peli.clasificacion || 'A').replace('+', '');
-
-      card.innerHTML = `
-        <div class="funcion-header">
-          ${peli.posterUrl
-            ? `<img src="${peli.posterUrl}" class="poster-img" alt="${escHtml(peli.nombre)}"
-                    onerror="this.style.display='none';this.parentElement.classList.add('no-poster')">`
-            : `<div class="funcion-no-poster"></div>`}
-          <div class="poster-overlay-badges">
-            <span class="badge badge-dur">${peli.duracionMin || '?'} MIN</span>
-          </div>
-          <h3>${escHtml(peli.nombre).toUpperCase()}</h3>
-        </div>
-        <div class="funcion-body">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span class="badge badge-genre">${genreLabel}</span>
-            <span class="clasif-pill ${clasifClass}" title="Clasificación ${peli.clasificacion || 'A'}">${peli.clasificacion || 'A'}</span>
-          </div>
-          ${peli.descripcion
-            ? `<p class="funcion-desc" style="margin:0;">${escHtml(peli.descripcion)}</p>`
-            : '<p class="funcion-desc" style="margin:0;color:var(--c-muted);font-style:italic;">Sin descripción disponible.</p>'}
-          <button class="btn-reservar" onclick="abrirSeleccionFuncion(${peli.movieId})">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/>
-              <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
-              <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
-            </svg> Reservar Entrada
-          </button>
-        </div>`;
-
-      list.appendChild(card);
-      _carteleraCards.push({ peli, cardEl: card });
+    const sel = document.getElementById('fil_c_sucursal');
+    if (sel) {
+      const previa = sel.value;
+      const usadas = new Map(funcs.map(f => [String(f.sala.sucursal.branId), f.sala.sucursal.branLocation]));
+      sel.innerHTML = '<option value="">Todas las sucursales</option>' +
+        [...usadas].map(([id, loc]) => `<option value="${id}">${escHtml(loc)}</option>`).join('');
+      sel.value = usadas.has(previa) ? previa : '';
     }
-
-    const peliList = Object.values(pelisMap);
-    const generos  = new Set(peliList.map(p => p.genero).filter(Boolean));
-    const statsEl  = document.getElementById('carteleraStats');
+    const statsEl = document.getElementById('carteleraStats');
     if (statsEl) {
       statsEl.style.display = 'flex';
-      document.getElementById('stat_pelis_count').textContent     = peliList.length;
-      document.getElementById('stat_generos_count').textContent   = generos.size;
-      document.getElementById('stat_funciones_count').textContent = funcionesCache.length;
+      document.getElementById('stat_pelis_count').textContent     = _pelis.length;
+      document.getElementById('stat_generos_count').textContent   = new Set(_pelis.map(p => p.peli.genero).filter(Boolean)).size;
+      document.getElementById('stat_funciones_count').textContent = funcs.length;
     }
+    list.removeAttribute('aria-busy');
+    pintarCartelera();
   } catch (e) {
-    list.innerHTML = `<div class="empty-state" style="grid-column:1/-1">Error: ${e.message}</div>`;
+    list.removeAttribute('aria-busy');
+    list.innerHTML = `<div class="empty-state estado-error" role="alert">No pudimos cargar la cartelera: ${escHtml(e.message)}<br><button class="btn" onclick="cargarCartelera()">Reintentar</button></div>`;
   }
+}
+
+function tarjeta({ peli, funcs }) {
+  const clasif = peli.clasificacion || 'A';
+  const genero = (peli.genero || '').replace(/_/g, ' ');
+  const horarios = funcs.slice(0, MAX_HORARIOS).map(f => {
+    const hora = (f.horaInicio || '').slice(0, 5);
+    return `<button class="chip-hora" onclick="seleccionarFuncion(${f.funcionId})"
+      title="${escHtml(f.sala.sucursal.branLocation)} · ${escHtml(f.sala.nombre)}"
+      aria-label="Reservar ${escHtml(peli.nombre)}, ${formatFechaCorta(f.fecha)} a las ${hora}"><small>${formatFechaCorta(f.fecha)}</small>${hora}</button>`;
+  }).join('');
+  const mas = funcs.length > MAX_HORARIOS
+    ? `<button class="chip-mas" onclick="abrirSeleccionFuncion(${peli.movieId})">+${funcs.length - MAX_HORARIOS} más</button>` : '';
+  return `<article class="peli-card">
+    <div class="peli-poster" data-poster="${peli.movieId}">${peli.tienePoster ? '' : '<span class="peli-sin-poster" aria-hidden="true">🎬</span>'}
+      <span class="clasif-pill clasif-${clasif.replace('+', '')}" title="Clasificación ${escHtml(clasif)}">${escHtml(clasif)}</span></div>
+    <div class="peli-body">
+      <h4>${escHtml(peli.nombre)}</h4>
+      <p class="peli-meta">${genero ? `${escHtml(genero)} · ` : ''}${peli.duracionMin || '?'} min</p>
+      <div class="chips" role="group" aria-label="Próximos horarios">${horarios}${mas}</div>
+      <button class="btn-reservar" onclick="abrirSeleccionFuncion(${peli.movieId})">Ver horarios y reservar</button>
+    </div></article>`;
+}
+
+// Los afiches se piden aparte (una sola vez por película) y se colocan al llegar
+function cargarPosters() {
+  document.querySelectorAll('#carteleraList [data-poster]').forEach(el => {
+    const item = _pelis.find(p => p.peli.movieId === Number(el.dataset.poster));
+    if (!item?.peli.tienePoster) return;
+    if (!_posters.has(item.peli.movieId)) {
+      _posters.set(item.peli.movieId, api(`/peliculas/${item.peli.movieId}/poster`).then(r => r.posterUrl).catch(() => null));
+    }
+    _posters.get(item.peli.movieId).then(url => {
+      if (!url) return;
+      item.peli.posterUrl = url; // también lo usa el modal de selección de función
+      if (el.isConnected) { const img = new Image(); img.src = url; img.alt = ''; img.loading = 'lazy'; el.prepend(img); }
+    });
+  });
+}
+
+function pintarCartelera() {
+  const list = document.getElementById('carteleraList');
+  if (!list) return;
+  const v = (id) => document.getElementById(id)?.value || '';
+  const titulo = v('fil_c_titulo').toLowerCase().trim(), genero = v('fil_c_genero').toLowerCase(), clasif = v('fil_c_clasif'), suc = v('fil_c_sucursal');
+  const visibles = [];
+  for (const { peli, funcs } of _pelis) {
+    const fs = suc ? funcs.filter(f => String(f.sala.sucursal.branId) === suc) : funcs;
+    if (!fs.length) continue;
+    if (titulo && !peli.nombre.toLowerCase().includes(titulo)) continue;
+    if (genero && !(peli.genero || '').toLowerCase().includes(genero)) continue;
+    if (clasif && peli.clasificacion !== clasif) continue;
+    visibles.push({ peli, funcs: fs });
+  }
+  const conteo = document.getElementById('fil_c_conteo');
+  if (conteo) conteo.textContent = visibles.length < _pelis.length ? `${visibles.length} de ${_pelis.length} películas` : '';
+  if (!_pelis.length) { list.innerHTML = '<div class="empty-state">No hay funciones programadas activas.</div>'; return; }
+  if (!visibles.length) {
+    list.innerHTML = `<div class="empty-state">${titulo ? `No se encontraron películas que coincidan con "${escHtml(titulo)}".` : 'No se encontraron películas con estos filtros.'}</div>`;
+    return;
+  }
+  list.innerHTML = CATEGORIAS.map(cat => {
+    const grupo = visibles.filter(p => categoriaDe(p.funcs) === cat.id);
+    return grupo.length ? `<section class="cat-section" aria-labelledby="cat-${cat.id}">
+      <div class="cat-head"><h3 id="cat-${cat.id}">${cat.titulo}</h3><span>${cat.sub}</span></div>
+      <div class="peli-grid">${grupo.map(tarjeta).join('')}</div></section>` : '';
+  }).join('');
+  cargarPosters();
 }
 
 // ── Filtros de cartelera ──────────────────────────────────────
-function filtrarCartelera() {
-  const titulo = (document.getElementById('fil_c_titulo')?.value || '').toLowerCase();
-  const genero = (document.getElementById('fil_c_genero')?.value || '').toLowerCase();
-  const clasif = document.getElementById('fil_c_clasif')?.value || '';
-  let visible  = 0;
-  _carteleraCards.forEach(({ peli, cardEl }) => {
-    const match =
-      (!titulo || peli.nombre.toLowerCase().includes(titulo)) &&
-      (!genero || (peli.genero || '').toLowerCase().includes(genero)) &&
-      (!clasif || peli.clasificacion === clasif);
-    cardEl.style.display = match ? '' : 'none';
-    if (match) visible++;
-  });
-  const conteo = document.getElementById('fil_c_conteo');
-  if (conteo) conteo.textContent = visible < _carteleraCards.length ? `${visible} de ${_carteleraCards.length} películas` : '';
-
-  // KAN-49: mensaje cuando ninguna película coincide con la búsqueda
-  const list = document.getElementById('carteleraList');
-  if (list && _carteleraCards.length) {
-    let vacio = document.getElementById('carteleraSinResultados');
-    if (visible === 0) {
-      if (!vacio) {
-        vacio = document.createElement('div');
-        vacio.id = 'carteleraSinResultados';
-        vacio.className = 'empty-state';
-        vacio.style.gridColumn = '1/-1';
-        list.appendChild(vacio);
-      }
-      vacio.textContent = titulo
-        ? `No se encontraron películas que coincidan con "${titulo}".`
-        : 'No se encontraron películas con estos filtros.';
-    } else if (vacio) {
-      vacio.remove();
-    }
-  }
-}
+function filtrarCartelera() { pintarCartelera(); }
 
 function limpiarFiltrosCartelera() {
   ['fil_c_titulo', 'fil_c_genero'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  const c = document.getElementById('fil_c_clasif'); if (c) c.selectedIndex = 0;
-  filtrarCartelera();
+  ['fil_c_genero_sel', 'fil_c_clasif', 'fil_c_sucursal'].forEach(id => { const el = document.getElementById(id); if (el) el.selectedIndex = 0; });
+  pintarCartelera();
 }
 
 // ── Modal de selección de función ───────────────────────────
