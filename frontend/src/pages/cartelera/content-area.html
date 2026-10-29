@@ -35,12 +35,13 @@
 
       <!-- BARRA DE BÚSQUEDA / FILTROS -->
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:24px;padding:16px 20px;background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--radius);">
+        <div style="flex:1;min-width:150px;"><select id="fil_c_sucursal" aria-label="Filtrar por sucursal" onchange="filtrarCartelera()" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;"><option value="">Todas las sucursales</option></select></div>
         <div style="display:flex;align-items:center;gap:8px;flex:2;min-width:180px;background:rgba(255,255,255,0.04);border:1px solid var(--c-border2);border-radius:var(--radius-sm);padding:0 12px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(238,238,248,0.35)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
-          <input type="text" id="fil_c_titulo" placeholder="Buscar película..." oninput="filtrarCartelera()" style="background:transparent;border:none;padding:10px 0;font-size:14px;box-shadow:none;width:100%;">
+          <input type="text" id="fil_c_titulo" aria-label="Buscar película por nombre" placeholder="Buscar película..." oninput="filtrarCartelera()" style="background:transparent;border:none;padding:10px 0;font-size:14px;box-shadow:none;width:100%;">
         </div>
         <div style="flex:1;min-width:150px;">
-          <select id="fil_c_genero_sel" onchange="document.getElementById('fil_c_genero').value=this.value;filtrarCartelera();" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;">
+          <select id="fil_c_genero_sel" aria-label="Filtrar por género" onchange="document.getElementById('fil_c_genero').value=this.value;filtrarCartelera();" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;">
             <option value="">Todos los géneros</option>
             <option value="accion">Acción</option>
             <option value="drama">Drama</option>
@@ -52,7 +53,7 @@
           <input type="hidden" id="fil_c_genero">
         </div>
         <div style="flex:1;min-width:140px;">
-          <select id="fil_c_clasif" onchange="filtrarCartelera()" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;">
+          <select id="fil_c_clasif" aria-label="Filtrar por clasificación" onchange="filtrarCartelera()" style="background:var(--c-card);border:1px solid var(--c-border2);color:var(--c-text);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;width:100%;cursor:pointer;">
             <option value="">Clasificación</option>
             <option value="A">A — Todo Público</option>
             <option value="B">B — +12 Años</option>

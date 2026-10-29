@@ -2,6 +2,7 @@ import router, { initRouter } from './router.js';
 
 // Importar los estilos globales extraídos
 import './styles.css';
+import './styles-ui.css';
 
 // IMPORTANTE: Para que los scripts antiguos sigan funcionando mientras
 // terminamos de refactorizarlos a módulos ES6 puros (bajo acoplamiento),
