@@ -12,6 +12,7 @@ import { cargarCartelera } from '../cartelera/cartelera.js';
 import { cargarReservas } from '../reservas/reservas.js';
 import { cargarFunciones } from '../funciones/funciones.js';
 import { cargarOcupacion } from '../ocupacion/ocupacion.js';
+import { cargarMisPagos } from '../pagos/mis-pagos.js';
 
 // ── Estado global compartido ─────────────────────────────────
 let seleccionadasIds = new Set();
@@ -31,7 +32,7 @@ export function switchView(viewId, element) {
     dashboard:'Panel Principal', cartelera:'Taquilla', peliculas:'Catálogo Películas',
     salas:'Programar Salas', funciones:'Programar Funciones', reservas:'Historial',
     sucursales:'Cines & Sucursales', usuarios:'Gestión de Usuarios', config:'Configuración',
-    ocupacion:'Ocupación'
+    ocupacion:'Ocupación', mispagos:'Mis pagos'
   };
   const secEl = document.getElementById('topbar-section-name');
   if (secEl) secEl.textContent = sectionNames[viewId] || viewId;
@@ -44,6 +45,7 @@ export function switchView(viewId, element) {
   if (viewId === 'funciones')  cargarFunciones();
   if (viewId === 'reservas')   cargarReservas();
   if (viewId === 'ocupacion')  cargarOcupacion();
+  if (viewId === 'mispagos')   cargarMisPagos();
   if (viewId === 'sucursales') { _filtroSucCineId = null; cargarSucursales(); }
   if (viewId === 'usuarios')   cargarUsuarios();
   if (viewId === 'config')     testConexion();

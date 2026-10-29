@@ -206,6 +206,9 @@ export async function handleRegister(e) {
 export function logout() {
   sessionStorage.clear();
   SESSION_KEYS.forEach(k => localStorage.removeItem(k));
+  // Con el router por hash, la URL seguiría en #/dashboard y al recargar se vería el panel vacío:
+  // se vuelve al inicio de sesión antes de recargar.
+  location.hash = '#/';
   location.reload();
 }
 
@@ -282,10 +285,10 @@ function aplicarNavPorRol() {
   const rol = sessionStorage.getItem('monarca_rol') || 'USER';
   const isAdmin = rol === 'ADMIN';
 
-  // Mostrar / ocultar ítems según rol (data-rol="ADMIN" o data-rol="GESTOR")
+  // Mostrar / ocultar ítems según rol (data-rol="ADMIN", "GESTOR" o una lista: "USER,GESTOR")
   document.querySelectorAll('[data-rol]').forEach(el => {
     const requerido = el.getAttribute('data-rol');
-    el.style.display = requerido && requerido !== rol ? 'none' : '';
+    el.style.display = requerido && !requerido.split(',').includes(rol) ? 'none' : '';
   });
 
   // El dashboard solo es visible para admins
