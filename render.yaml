@@ -7,7 +7,7 @@ services:
     plan: free
     region: ohio
     buildCommand: npm --prefix frontend install --include=dev && npm --prefix frontend run build && npm --prefix backend install
-    startCommand: npm --prefix backend start
+    startCommand: npm --prefix backend run db:migrate && npm --prefix backend start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION

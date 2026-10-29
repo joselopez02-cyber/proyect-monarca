@@ -1,3 +1,7 @@
+-- KAN-61: migracion 001 = esquema base (lo que antes era sql/01_schema.sql).
+-- Es idempotente (IF NOT EXISTS): sobre una base que ya tiene las tablas no cambia nada y solo queda registrada.
+
+-- up
 -- =============================================
 -- Cinema Monarca - Esquema PostgreSQL
 -- Tickets Jira: KAN-9 (modelo de datos) y KAN-13 (scripts SQL)
@@ -145,3 +149,7 @@ ALTER TABLE reserva ADD COLUMN IF NOT EXISTS sillas_texto VARCHAR(500);
 ALTER TABLE reserva ADD COLUMN IF NOT EXISTS creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE cliente ADD COLUMN IF NOT EXISTS usuario_id BIGINT REFERENCES usuario(usuario_id) ON DELETE SET NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_cliente_usuario ON cliente(usuario_id);
+
+-- down
+-- CUIDADO: borra todas las tablas de la aplicacion.
+DROP TABLE IF EXISTS transaccion, silla, reserva, funcion, pelicula, sala, cliente, gestor, sucursal, cine, usuario CASCADE;

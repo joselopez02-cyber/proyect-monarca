@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pool from '../src/db.js';
+import { aplicarPendientes } from '../src/utils/migraciones.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'sql');
 const reset = process.argv.includes('--reset');
@@ -17,10 +18,10 @@ async function run() {
     await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   }
 
-  for (const file of ['01_schema.sql', '02_seed.sql']) {
-    console.log(`Ejecutando ${file} ...`);
-    await pool.query(fs.readFileSync(path.join(dir, file), 'utf8'));
-  }
+  console.log('Aplicando migraciones ...');
+  await aplicarPendientes(pool);
+  console.log('Ejecutando 02_seed.sql ...');
+  await pool.query(fs.readFileSync(path.join(dir, '02_seed.sql'), 'utf8'));
 
   const tablas = ['usuario', 'cine', 'sucursal', 'gestor', 'cliente', 'sala',
                   'pelicula', 'funcion', 'reserva', 'silla', 'transaccion'];

@@ -7,7 +7,10 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "db:setup": "node scripts/setup-db.js",
-    "db:reset": "node scripts/setup-db.js --reset"
+    "db:reset": "node scripts/setup-db.js --reset",
+    "db:migrate": "node scripts/migrate.js up",
+    "db:migrate:down": "node scripts/migrate.js down",
+    "db:migrate:status": "node scripts/migrate.js status"
   },
   "license": "ISC",
   "dependencies": {
