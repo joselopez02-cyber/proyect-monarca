@@ -1000,3 +1000,43 @@
     }
     #splashMsg::after { content:''; animation:splashDots 1s 1.2s step-end infinite; }
   
+
+/* ── Comprobante de reserva (KAN-41 / HU23) ───────────────── */
+.cp-wrap { width: 100%; max-width: 420px; margin: auto; }
+.cp-card {
+  background: var(--c-surface); border: 1px solid var(--c-border2);
+  border-radius: var(--radius-lg); padding: 22px 24px; box-shadow: 0 20px 50px rgba(0,0,0,.7);
+}
+.cp-head { text-align: center; border-bottom: 1px dashed var(--c-border2); padding-bottom: 14px; margin-bottom: 8px; }
+.cp-brand { font-family: var(--f-head); font-size: 24px; letter-spacing: 2px; color: var(--c-gold); line-height: 1; }
+.cp-sub { font-size: 12px; color: var(--c-muted); margin-top: 4px; }
+.cp-code { font-family: var(--f-mono); font-size: 20px; font-weight: 700; margin-top: 8px; }
+.cp-row { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--c-border); font-size: 13px; }
+.cp-label { color: var(--c-muted); flex-shrink: 0; }
+.cp-val { font-weight: 600; text-align: right; word-break: break-word; }
+.cp-mono { font-family: var(--f-mono); font-size: 12px; }
+.cp-total .cp-val { color: var(--c-gold); font-size: 18px; }
+.cp-foot { text-align: center; font-size: 12px; color: var(--c-muted); margin-top: 14px; }
+.cp-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+@media print {
+  body.imprimiendo-comprobante > *:not(#modals-container) { display: none !important; }
+  body.imprimiendo-comprobante #modals-container > *:not(#modalComprobante) { display: none !important; }
+  body.imprimiendo-comprobante { background: #fff !important; }
+  body.imprimiendo-comprobante #modalComprobante {
+    position: static !important; display: block !important; background: #fff !important;
+    backdrop-filter: none !important; padding: 0 !important; overflow: visible !important;
+  }
+  body.imprimiendo-comprobante .cp-wrap { max-width: 100%; }
+  body.imprimiendo-comprobante .cp-card {
+    background: #fff !important; color: #000 !important; border: 1px solid #000 !important; box-shadow: none !important;
+  }
+  body.imprimiendo-comprobante .cp-brand,
+  body.imprimiendo-comprobante .cp-total .cp-val,
+  body.imprimiendo-comprobante .cp-code { color: #000 !important; }
+  body.imprimiendo-comprobante .cp-label,
+  body.imprimiendo-comprobante .cp-sub,
+  body.imprimiendo-comprobante .cp-foot { color: #444 !important; }
+  body.imprimiendo-comprobante .cp-row { border-color: #bbb !important; }
+  .no-print { display: none !important; }
+}

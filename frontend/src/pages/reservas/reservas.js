@@ -524,6 +524,7 @@ function renderTablaReservas() {
             <button class="btn btn-sm" title="Ver detalle" onclick="verDetalleReserva(${r.resCode})" style="padding:5px 9px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
             <button class="btn btn-sm" title="Copiar ticket" onclick="copiarTicket(${r.resCode}, event)" style="padding:5px 9px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
             ${r.estado === 'PENDIENTE' ? `<button class="btn btn-sm btn-primary" onclick="completarPagoPendiente(${r.resCode})" style="white-space:nowrap">Completar pago</button>` : ''}
+            ${r.estado === 'CONFIRMADA' ? `<button class="btn btn-sm" title="Ver comprobante" onclick="verComprobante(${r.resCode})" style="white-space:nowrap">Comprobante</button>` : ''}
             ${r.estado === 'CONFIRMADA' ? `<button class="btn btn-sm btn-danger" onclick="cancelarReserva(${r.resCode})" style="white-space:nowrap">✕ Anular</button>` : ''}
           </div>
         </td>
@@ -656,7 +657,10 @@ function verDetalleReserva(resCode) {
 
   const btnWrap = document.getElementById('ms_btn_anular_wrap');
   if (r.estado === 'CONFIRMADA') {
-    btnWrap.innerHTML = `<button class="btn btn-danger" onclick="anularDesdeModal(${r.resCode})" style="gap:6px;">✕ Anular Tiquete</button>`;
+    btnWrap.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn" onclick="verComprobante(${r.resCode})" style="gap:6px;">Comprobante</button>
+      <button class="btn btn-danger" onclick="anularDesdeModal(${r.resCode})" style="gap:6px;">✕ Anular Tiquete</button>
+    </div>`;
   } else {
     btnWrap.innerHTML = '';
   }
@@ -667,6 +671,39 @@ async function anularDesdeModal(resCode) {
   document.getElementById('modalSillas').style.display = 'none';
   await cancelarReserva(resCode);
 }
+
+// ── Comprobante de reserva (KAN-41 / HU23) ───────────────────
+async function verComprobante(resCode) {
+  try {
+    const c = await api(`/reservas/${resCode}/comprobante`);
+    const set = (id, valor) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = valor || '—';
+    };
+    set('cp_codigo',     'TK-' + c.resCode);
+    set('cp_pelicula',   c.pelicula);
+    set('cp_sala',       [c.sala, c.sucursal].filter(Boolean).join(' · '));
+    set('cp_horario',    [c.fecha, (c.hora || '').slice(0, 5)].filter(Boolean).join(' · '));
+    set('cp_sillas',     (c.sillas || []).join(', '));
+    set('cp_cliente',    c.cliente);
+    set('cp_metodo',     METODO_LABEL[c.metodoPago] || c.metodoPago);
+    set('cp_referencia', c.referencia);
+    set('cp_total',      '$' + Number(c.total).toLocaleString('es-CO') + ' COP');
+
+    document.getElementById('modalSillas').style.display = 'none';
+    document.body.classList.add('imprimiendo-comprobante');
+    document.getElementById('modalComprobante').style.display = 'flex';
+  } catch (e) {
+    showAlert('No se pudo abrir el comprobante: ' + e.message, 'error');
+  }
+}
+
+function cerrarComprobante() {
+  document.getElementById('modalComprobante').style.display = 'none';
+  document.body.classList.remove('imprimiendo-comprobante');
+}
+
+function imprimirComprobante() { window.print(); }
 
 // Alias
 function verSillasReserva(resCode) { verDetalleReserva(resCode); }
@@ -727,4 +764,5 @@ Object.assign(window, {
   actualizarTotales, seleccionarMetodoPago, procesarPago, cargarReservas,
   filtrarReservas, limpiarFiltrosReservas, cancelarReserva, completarPagoPendiente,
   verDetalleReserva, anularDesdeModal, verSillasReserva, copiarTicket,
+  verComprobante, cerrarComprobante, imprimirComprobante,
 });

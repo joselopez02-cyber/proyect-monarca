@@ -58,6 +58,51 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json(aReserva(rows[0]));
 });
 
+// KAN-41 (HU23): comprobante de una reserva CONFIRMADA (función, sillas, total pagado y referencia de pago).
+// Lo ve el dueño de la reserva o un ADMIN. Si la reserva no está confirmada no hay comprobante.
+router.get('/:id/comprobante', requireAuth, async (req, res) => {
+  const id = parseId(req.params.id);
+  const { rows } = await pool.query(
+    `SELECT r.res_code, r.estado, r.nombre, r.fecha, r.tiempo, r.total, r.sillas_texto,
+            c.usuario_id AS duenio_id,
+            p.nombre AS pelicula, sa.nombre AS sala, su.bran_location AS sucursal,
+            t.referencia, t.pago_total, t.tipo_pago, t.fecha_trans
+       FROM reserva r
+       LEFT JOIN cliente c ON c.cust_id = r.cust_id
+       LEFT JOIN funcion f ON f.funcion_id = r.funcion_id
+       LEFT JOIN pelicula p ON p.movie_id = f.movie_id
+       LEFT JOIN sala sa ON sa.sala_id = f.sala_id
+       LEFT JOIN sucursal su ON su.bran_id = sa.sucursal_id
+       LEFT JOIN LATERAL (
+         SELECT referencia, pago_total, tipo_pago, fecha_trans
+           FROM transaccion
+          WHERE res_code = r.res_code AND estado_pago = 'APROBADO'
+          ORDER BY fecha_trans DESC, trans_no DESC LIMIT 1) t ON TRUE
+      WHERE r.res_code = $1`, [id]);
+  const r = rows[0];
+  if (!r) throw new HttpError(404, `Reserva no encontrada con id: ${id}`);
+  if (!esAdmin(req) && Number(r.duenio_id) !== req.user.usuarioId) {
+    throw new HttpError(403, 'Esta reserva es de otro cliente.');
+  }
+  if (r.estado !== 'CONFIRMADA') {
+    throw new HttpError(409, 'El comprobante solo está disponible para reservas confirmadas.');
+  }
+  res.json({
+    resCode: Number(r.res_code),
+    cliente: r.nombre,
+    pelicula: r.pelicula,
+    sala: r.sala,
+    sucursal: r.sucursal,
+    fecha: r.fecha,
+    hora: r.tiempo,
+    sillas: r.sillas_texto ? r.sillas_texto.split(',') : [],
+    total: Number(r.pago_total ?? r.total),
+    referencia: r.referencia,
+    metodoPago: r.tipo_pago,
+    fechaPago: r.fecha_trans,
+  });
+});
+
 // KAN-28 (HU15): crear la reserva con las sillas que el cliente bloqueó.
 // Cuerpo: { "funcionId": 11, "sillas": ["A1","A2"], "custId": 5 (opcional), "nombre": "...", "contNum": "..." }
 // Las sillas deben seguir bloqueadas A TU NOMBRE (sin vencer). Todo ocurre en una sola transacción:
