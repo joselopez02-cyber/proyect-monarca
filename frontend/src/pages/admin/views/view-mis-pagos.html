@@ -1,0 +1,21 @@
+<section id="view-mispagos" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Mis pagos</h2>
+          <p>Tus transacciones, de la más reciente a la más antigua.</p>
+        </div>
+        <button class="btn" onclick="cargarMisPagos()">↻ Actualizar</button>
+      </div>
+      <div class="table-container">
+        <table style="min-width:640px">
+          <thead><tr>
+            <th>Fecha</th>
+            <th>Reserva</th>
+            <th>Método</th>
+            <th>Monto (COP)</th>
+            <th>Estado</th>
+          </tr></thead>
+          <tbody id="misPagosTable"></tbody>
+        </table>
+      </div>
+    </section>

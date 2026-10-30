@@ -1,6 +1,7 @@
 import Navigo from 'navigo';
 import { handleLogin, handleRegister, logout, switchAuthTab } from './services/auth.js';
 import { switchView } from './pages/admin/admin.js';
+import { showAlert } from './utils/utils.js';
 
 // Importación de HTML como texto puro (característica de Vite con ?raw)
 import loginHtml from './pages/login/login.html?raw';
@@ -14,6 +15,7 @@ import sucursalesHtml from './pages/admin/views/view-sucursales.html?raw';
 import usuariosHtml from './pages/admin/views/view-usuarios.html?raw';
 import configHtml from './pages/admin/views/view-config.html?raw';
 import ocupacionHtml from './pages/admin/views/view-ocupacion.html?raw';
+import misPagosHtml from './pages/admin/views/view-mis-pagos.html?raw';
 
 const router = new Navigo('/', { hash: true });
 const adminViewsHtml = [
@@ -25,6 +27,7 @@ const adminViewsHtml = [
   usuariosHtml,
   configHtml,
   ocupacionHtml,
+  misPagosHtml,
 ].join('\n');
 
 function render(htmlContent) {
@@ -62,6 +65,12 @@ export function initRouter() {
       },
       '/dashboard': () => {
         console.log('Ruta: Dashboard / Cartelera');
+        // Sin sesión vigente no hay panel: se vuelve al inicio de sesión
+        const exp = Number(localStorage.getItem('monarca_token_exp') || 0);
+        if (!localStorage.getItem('monarca_token') || (exp && exp < Date.now())) {
+          router.navigate('/');
+          return;
+        }
         // Renderizamos el sidebar y el área de contenido
         render(`
           <div style="display:flex;">
@@ -77,6 +86,14 @@ export function initRouter() {
     .resolve();
 
   window.addEventListener('monarca:authenticated', () => router.navigate('/dashboard'));
+
+  // Si el servidor responde 401 (token vencido o inválido) se vuelve al inicio de sesión,
+  // en vez de dejar el panel abierto con el error "Sesión expirada" en cada tabla.
+  window.addEventListener('monarca:session-expired', () => {
+    if (document.getElementById('loginForm')) return;
+    showAlert('Tu sesión expiró. Inicia sesión de nuevo.', 'error');
+    router.navigate('/');
+  });
 }
 
 export default router;
