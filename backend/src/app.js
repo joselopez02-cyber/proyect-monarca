@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import pool from './db.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import authRouter from './routes/auth.js';
@@ -17,13 +16,16 @@ import pagosRouter from './routes/pagos.js';
 import servirFrontend from './servirFrontend.js';
 import transaccionesRouter from './routes/transacciones.js';
 import ocupacionRouter from './routes/ocupacion.js';
+import { cabecerasSeguridad, corsRestringido, limiteGlobal } from './middleware/seguridad.js';
 
 const app = express();
 
-// Detrás del proxy de Codespaces, esto hace que req.ip sea la IP real del cliente
+// Detrás del proxy (Render o Codespaces), esto hace que req.ip sea la IP real del cliente
 app.set('trust proxy', 1);
 
-app.use(cors());
+app.use(cabecerasSeguridad);
+app.use(corsRestringido);
+app.use('/api', limiteGlobal);
 // El póster viaja en Base64 (hasta ~2 MB): estas rutas aceptan un cuerpo más grande que el resto de la API (100 kb)
 app.use('/api/peliculas', express.json({ limit: '3mb' }));
 app.use(express.json());
