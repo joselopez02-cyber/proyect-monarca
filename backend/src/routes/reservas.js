@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { parseId, texto } from '../utils/validators.js';
 import { ZONA } from '../utils/horarios.js';
 import { normalizarCodigos, conTransaccion, asegurarSillas, leerSillasBloqueando } from '../utils/sillas.js';
+import { registrarReembolso } from '../utils/reembolsos.js';
 
 const router = Router();
 
@@ -142,10 +143,12 @@ router.post('/', requireAuth, async (req, res) => {
 //   modo 'cancelar' (PATCH): la reserva queda CANCELADA y se conserva en el historial.
 //   modo 'eliminar' (DELETE): la reserva se borra (como pide el ticket).
 // Solo la cancela su dueño o un ADMIN. Una función que ya empezó solo la puede cancelar un ADMIN.
+// KAN-40 (HU22): si la reserva estaba CONFIRMADA (pagada) y la función aún no empieza, en la misma
+// transacción se registra un reembolso por el monto pagado. Devuelve ese reembolso, o null si no hubo.
 async function liberarReserva(req, id, modo) {
-  await conTransaccion(async (client) => {
+  return conTransaccion(async (client) => {
     const { rows } = await client.query(
-      `SELECT r.res_code, r.estado, r.funcion_id, c.usuario_id AS duenio_id,
+      `SELECT r.res_code, r.estado, r.funcion_id, r.cust_id, c.usuario_id AS duenio_id,
               CASE WHEN f.funcion_id IS NULL THEN FALSE
                    ELSE ((f.fecha || ' ' || f.hora_inicio)::timestamp < (NOW() AT TIME ZONE $2)) END AS ya_empezo
          FROM reserva r
@@ -165,6 +168,10 @@ async function liberarReserva(req, id, modo) {
       throw new HttpError(409, 'Esta función ya comenzó; la reserva ya no se puede cancelar.');
     }
 
+    const reembolso = r.estado === 'CONFIRMADA' && !r.ya_empezo
+      ? await registrarReembolso(client, { resCode: id, custId: r.cust_id })
+      : null;
+
     const { rowCount } = await client.query(
       `UPDATE silla SET estado = 'DISPONIBLE', reserva_id = NULL, bloqueado_por = NULL, bloqueado_en = NULL
         WHERE reserva_id = $1`, [id]);
@@ -176,15 +183,16 @@ async function liberarReserva(req, id, modo) {
 
     if (modo === 'eliminar') await client.query('DELETE FROM reserva WHERE res_code = $1', [id]);
     else await client.query("UPDATE reserva SET estado = 'CANCELADA' WHERE res_code = $1", [id]);
+    return reembolso;
   });
 }
 
 // Cancelar conservando el registro (lo usa el botón Cancelar del frontend)
 router.patch('/:id/cancelar', requireAuth, async (req, res) => {
   const id = parseId(req.params.id);
-  await liberarReserva(req, id, 'cancelar');
+  const reembolso = await liberarReserva(req, id, 'cancelar');
   const { rows } = await pool.query(`${SELECT_RESERVA} WHERE r.res_code = $1`, [id]);
-  res.json(aReserva(rows[0]));
+  res.json({ ...aReserva(rows[0]), reembolso });
 });
 
 // KAN-29: DELETE /api/reservas/{id} -> elimina la reserva y las sillas vuelven a estar disponibles

@@ -33,7 +33,9 @@ export async function cargarMisPagos() {
       return;
     }
 
-    tbody.innerHTML = pagos.map((t) => `
+    tbody.innerHTML = pagos.map((t) => {
+      const esReembolso = t.tipoTransaccion === 'REEMBOLSO'; // KAN-40 (HU22)
+      return `
       <tr>
         <td class="mono" style="white-space:nowrap">${escHtml(formatearFecha(t.fechaTrans))}</td>
         <td>
@@ -41,9 +43,12 @@ export async function cargarMisPagos() {
           ${t.peliculaNombre ? `<br><span style="font-size:11px;color:var(--c-muted)">${escHtml(t.peliculaNombre)}</span>` : ''}
         </td>
         <td>${escHtml(METODO_LABEL[t.tipoPago] || t.tipoPago || '—')}</td>
-        <td class="mono">${t.pagoTotal === null ? '—' : '$' + Number(t.pagoTotal).toLocaleString('es-CO')}</td>
-        <td><span class="badge ${BADGE_ESTADO[t.estadoPago] || 'badge-gold'}">${escHtml(t.estadoPago || '—')}</span></td>
-      </tr>`).join('');
+        <td class="mono">${t.pagoTotal === null ? '—' : (esReembolso ? '−$' : '$') + Number(t.pagoTotal).toLocaleString('es-CO')}</td>
+        <td>${esReembolso
+          ? '<span class="badge badge-gold">REEMBOLSO</span>'
+          : `<span class="badge ${BADGE_ESTADO[t.estadoPago] || 'badge-gold'}">${escHtml(t.estadoPago || '—')}</span>`}</td>
+      </tr>`;
+    }).join('');
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No se pudo cargar tu historial.</td></tr>';
     showAlert('Error al cargar tus pagos: ' + e.message, 'error');
