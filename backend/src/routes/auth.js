@@ -83,6 +83,41 @@ router.post('/login', async (req, res) => {
   res.json(sesion(u));
 });
 
+// KAN-48 (HU25): cambiar mi contraseña. Cuerpo: { "passwordActual": "...", "passwordNueva": "..." }
+// Exige la contraseña actual. Si no coincide responde 400 y no modifica nada.
+// (400 y no 401: el frontend cierra la sesión ante cualquier 401.)
+// Los intentos fallidos se limitan por usuario con el mismo mecanismo del login (5 fallos -> bloqueo).
+router.patch('/password', requireAuth, async (req, res) => {
+  const actual = typeof req.body?.passwordActual === 'string' ? req.body.passwordActual : '';
+  const nueva = typeof req.body?.passwordNueva === 'string' ? req.body.passwordNueva : '';
+
+  const errores = [];
+  if (!actual) errores.push('passwordActual: es obligatoria');
+  if (nueva.length < 6) errores.push('passwordNueva: debe tener mínimo 6 caracteres');
+  else if (Buffer.byteLength(nueva, 'utf8') > 72) errores.push('passwordNueva: máximo 72 bytes (límite de bcrypt)');
+  if (errores.length) throw new HttpError(400, errores.join(', '));
+  if (nueva === actual) throw new HttpError(400, 'passwordNueva: debe ser distinta a la actual');
+
+  const clave = `pwd:${req.user.usuarioId}`;
+  const espera = segundosBloqueado(clave);
+  if (espera > 0) {
+    res.set('Retry-After', String(espera));
+    throw new HttpError(429, `Demasiados intentos fallidos. Intenta en ${espera} segundos.`);
+  }
+
+  const { rows } = await pool.query('SELECT password_hash FROM usuario WHERE usuario_id = $1', [req.user.usuarioId]);
+  const correcta = await bcrypt.compare(actual, rows[0]?.password_hash ?? HASH_FALSO);
+  if (!rows[0] || !correcta) {
+    registrarFallo(clave);
+    throw new HttpError(400, 'La contraseña actual es incorrecta.');
+  }
+
+  registrarExito(clave);
+  const hash = await bcrypt.hash(nueva, 12);
+  await pool.query('UPDATE usuario SET password_hash = $1 WHERE usuario_id = $2', [hash, req.user.usuarioId]);
+  res.json({ mensaje: 'Contraseña actualizada correctamente.' });
+});
+
 // KAN-10 (HT02): datos del usuario autenticado
 router.get('/me', requireAuth, (req, res) => {
   const { usuarioId, username, email, rol } = req.user;
