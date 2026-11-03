@@ -16,6 +16,7 @@ import pagosRouter from './routes/pagos.js';
 import servirFrontend from './servirFrontend.js';
 import transaccionesRouter from './routes/transacciones.js';
 import ocupacionRouter from './routes/ocupacion.js';
+import reportesRouter from './routes/reportes.js';
 import { cabecerasSeguridad, corsRestringido, limiteGlobal } from './middleware/seguridad.js';
 
 const app = express();
@@ -54,6 +55,7 @@ app.use('/api/reservas', reservasRouter);
 app.use('/api/pagos', pagosRouter);
 app.use('/api/transacciones', transaccionesRouter);
 app.use('/api/ocupacion', ocupacionRouter);
+app.use('/api/reportes', reportesRouter);
 
 servirFrontend(app);
 app.use(notFound);
