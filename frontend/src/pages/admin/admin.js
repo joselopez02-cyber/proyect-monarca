@@ -13,6 +13,7 @@ import { cargarReservas } from '../reservas/reservas.js';
 import { cargarFunciones } from '../funciones/funciones.js';
 import { cargarOcupacion } from '../ocupacion/ocupacion.js';
 import { cargarMisPagos } from '../pagos/mis-pagos.js';
+import { iniciarReportes } from '../reportes/reportes.js';
 
 // ── Estado global compartido ─────────────────────────────────
 let seleccionadasIds = new Set();
@@ -32,7 +33,7 @@ export function switchView(viewId, element) {
     dashboard:'Panel Principal', cartelera:'Taquilla', peliculas:'Catálogo Películas',
     salas:'Programar Salas', funciones:'Programar Funciones', reservas:'Historial',
     sucursales:'Cines & Sucursales', usuarios:'Gestión de Usuarios', config:'Configuración',
-    ocupacion:'Ocupación', mispagos:'Mis pagos'
+    ocupacion:'Ocupación', mispagos:'Mis pagos', reportes:'Reporte de ventas'
   };
   const secEl = document.getElementById('topbar-section-name');
   if (secEl) secEl.textContent = sectionNames[viewId] || viewId;
@@ -46,6 +47,7 @@ export function switchView(viewId, element) {
   if (viewId === 'reservas')   cargarReservas();
   if (viewId === 'ocupacion')  cargarOcupacion();
   if (viewId === 'mispagos')   cargarMisPagos();
+  if (viewId === 'reportes')   iniciarReportes();
   if (viewId === 'sucursales') { _filtroSucCineId = null; cargarSucursales(); }
   if (viewId === 'usuarios')   cargarUsuarios();
   if (viewId === 'config')     testConexion();

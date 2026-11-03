@@ -16,6 +16,7 @@ import usuariosHtml from './pages/admin/views/view-usuarios.html?raw';
 import configHtml from './pages/admin/views/view-config.html?raw';
 import ocupacionHtml from './pages/admin/views/view-ocupacion.html?raw';
 import misPagosHtml from './pages/admin/views/view-mis-pagos.html?raw';
+import reportesHtml from './pages/admin/views/view-reportes.html?raw';
 
 const router = new Navigo('/', { hash: true });
 const adminViewsHtml = [
@@ -28,6 +29,7 @@ const adminViewsHtml = [
   configHtml,
   ocupacionHtml,
   misPagosHtml,
+  reportesHtml,
 ].join('\n');
 
 function render(htmlContent) {

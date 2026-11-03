@@ -1,0 +1,30 @@
+<section id="view-reportes" class="view-section">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Reporte de ventas</h2>
+          <p>Boletas e ingresos por película y función. Los reembolsos se restan del total.</p>
+        </div>
+      </div>
+      <div class="card mb-3" style="padding:14px 16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div class="input-group" style="margin:0;min-width:150px;flex:1"><label>Desde</label><input type="date" id="rep-desde"></div>
+          <div class="input-group" style="margin:0;min-width:150px;flex:1"><label>Hasta</label><input type="date" id="rep-hasta"></div>
+          <button class="btn btn-primary" id="rep-consultar" onclick="cargarReporteVentas()">Consultar</button>
+        </div>
+        <p id="rep-error" style="font-size:12px;color:var(--c-red);display:none;margin:10px 0 0;"></p>
+        <p id="rep-rango" style="font-size:12px;color:var(--c-muted);margin:10px 0 0;"></p>
+      </div>
+      <div id="rep-resumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;"></div>
+      <div class="table-container">
+        <table style="min-width:640px">
+          <thead><tr>
+            <th>Película / Función</th>
+            <th>Boletas</th>
+            <th>Ingresos</th>
+            <th>Reembolsos</th>
+            <th>Neto</th>
+          </tr></thead>
+          <tbody id="reporteTbody"></tbody>
+        </table>
+      </div>
+    </section>
