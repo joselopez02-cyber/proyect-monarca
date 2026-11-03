@@ -27,6 +27,31 @@
           </button>
         </div>
 
+        <!-- Tarjeta: Cambiar contraseña (KAN-48, HU25) -->
+        <div class="card" style="border-color:rgba(245,197,24,0.12);background:linear-gradient(135deg,rgba(245,197,24,0.03) 0%,transparent 60%);">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+            <div style="width:32px;height:32px;background:var(--c-gold-dim);border:1px solid rgba(245,197,24,0.25);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+            <div>
+              <div style="font-family:var(--f-head);font-size:18px;letter-spacing:1px;">Cambiar contraseña</div>
+              <div style="font-size:11px;color:var(--c-muted);">Mínimo 6 caracteres</div>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Contraseña actual</label>
+            <input type="password" id="pwd_actual" autocomplete="current-password" placeholder="••••••">
+          </div>
+          <div class="input-group">
+            <label>Nueva contraseña</label>
+            <input type="password" id="pwd_nueva" autocomplete="new-password" placeholder="••••••">
+          </div>
+          <div class="input-group">
+            <label>Repetir nueva contraseña</label>
+            <input type="password" id="pwd_repetir" autocomplete="new-password" placeholder="••••••" onkeydown="if(event.key==='Enter') cambiarPassword()">
+          </div>
+          <p id="pwd_error" style="font-size:12px;color:var(--c-red);display:none;margin:0 0 12px;"></p>
+          <button id="pwd_btn" class="btn btn-primary w-full" onclick="cambiarPassword()" style="letter-spacing:0.5px;">Actualizar contraseña</button>
+        </div>
+
         <!-- Tarjeta: Estado y Swagger -->
 
 

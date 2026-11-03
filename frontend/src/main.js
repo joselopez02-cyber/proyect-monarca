@@ -18,6 +18,7 @@ import './pages/reservas/reservas.js';
 import './pages/funciones/funciones.js';
 import './pages/ocupacion/ocupacion.js';
 import './pages/admin/admin.js';
+import './pages/config/cambiar-password.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   console.log("Aplicación inicializada con Navigo.");
