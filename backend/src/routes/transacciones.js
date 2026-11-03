@@ -12,7 +12,7 @@ router.get('/', requireAuth, async (req, res) => {
   const filtroPropietario = esAdmin(req) ? '' : 'WHERE c.usuario_id = $1';
   const parametros = esAdmin(req) ? [] : [req.user.usuarioId];
   const { rows } = await pool.query(
-    `SELECT t.trans_no, t.estado_pago, t.pago_total, t.fecha_trans, t.tipo_pago,
+    `SELECT t.trans_no, t.tipo_trans, t.estado_pago, t.pago_total, t.fecha_trans, t.tipo_pago,
             t.referencia, t.ultimos4, t.res_code, t.cust_id,
             r.estado AS estado_reserva, r.sillas_texto,
             p.nombre AS pelicula, sa.nombre AS sala, f.fecha AS fecha_funcion, f.hora_inicio AS hora_funcion
@@ -28,6 +28,7 @@ router.get('/', requireAuth, async (req, res) => {
   );
   res.json(rows.map((t) => ({
     transNo: Number(t.trans_no),
+    tipoTransaccion: t.tipo_trans, // PAGO | REEMBOLSO (KAN-40)
     estadoPago: t.estado_pago,
     pagoTotal: t.pago_total === null ? null : Number(t.pago_total),
     fechaTrans: t.fecha_trans,
@@ -58,7 +59,7 @@ router.get('/cliente/:custId', requireAuth, async (req, res) => {
   }
 
   const { rows } = await pool.query(
-    `SELECT t.trans_no, t.estado_pago, t.pago_total, t.fecha_trans, t.tipo_pago, t.referencia, t.ultimos4, t.res_code,
+    `SELECT t.trans_no, t.tipo_trans, t.estado_pago, t.pago_total, t.fecha_trans, t.tipo_pago, t.referencia, t.ultimos4, t.res_code,
             r.estado AS estado_reserva, r.sillas_texto,
             p.nombre AS pelicula, sa.nombre AS sala, f.fecha AS fecha_funcion, f.hora_inicio AS hora_funcion
        FROM transaccion t
@@ -72,6 +73,7 @@ router.get('/cliente/:custId', requireAuth, async (req, res) => {
   // La más reciente primero. Si la reserva ya no existe, esos campos quedan en null.
   res.json(rows.map((t) => ({
     transNo: Number(t.trans_no),
+    tipoTransaccion: t.tipo_trans, // PAGO | REEMBOLSO (KAN-40)
     estadoPago: t.estado_pago,
     pagoTotal: t.pago_total === null ? null : Number(t.pago_total),
     fechaTrans: t.fecha_trans,

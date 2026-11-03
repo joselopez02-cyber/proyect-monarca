@@ -415,6 +415,7 @@ export async function cargarReservas() {
     ]);
     const transMap = {};
     (transacciones || []).forEach(t => {
+      if (t.tipoTransaccion === 'REEMBOLSO') return; // el reembolso no es el pago de la reserva (KAN-40)
       if (t.reserva?.resCode) transMap[t.reserva.resCode] = t;
       else if (t.resCode) transMap[t.resCode] = t;
     });
@@ -556,8 +557,10 @@ function renderTablaReservas() {
 async function cancelarReserva(id) {
   if (!confirm(`¿Cancelar el tiquete #${id}? Se liberarán los asientos y no se puede deshacer.`)) return;
   try {
-    await api(`/reservas/${id}/cancelar`, 'PATCH');
-    showAlert('Tiquete cancelado y sillas liberadas.');
+    const cancelada = await api(`/reservas/${id}/cancelar`, 'PATCH');
+    showAlert(cancelada?.reembolso
+      ? `Tiquete cancelado y sillas liberadas. Reembolso registrado por $${Number(cancelada.reembolso.monto).toLocaleString('es-CO')}.`
+      : 'Tiquete cancelado y sillas liberadas.');
     cargarReservas(); _refrescarCarteleraCondicional();
   } catch (e) {
     try { await api(`/reservas/${id}`, 'DELETE'); showAlert('Tiquete cancelado y sillas liberadas.'); cargarReservas(); _refrescarCarteleraCondicional(); }
