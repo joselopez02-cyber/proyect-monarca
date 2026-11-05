@@ -12,16 +12,16 @@ export const textoTtl = () =>
 // ["a1", "A2"] -> [{ codigo: "A1", fila: "A", numero: 1 }, ...] (valida formato, quita repetidas)
 export function normalizarCodigos(valor, campo = 'codigos') {
   if (!Array.isArray(valor) || valor.length === 0) {
-    throw new HttpError(400, `${campo}: indica al menos una silla, por ejemplo ["A1","A2"].`);
+    throw new HttpError(400, `${campo}: indica al menos una silla, por ejemplo ["A1","A2"].`, 'SILLAS_REQUERIDAS');
   }
   if (valor.length > MAX_SILLAS_POR_BLOQUEO) {
-    throw new HttpError(400, `${campo}: máximo ${MAX_SILLAS_POR_BLOQUEO} sillas por solicitud.`);
+    throw new HttpError(400, `${campo}: máximo ${MAX_SILLAS_POR_BLOQUEO} sillas por solicitud.`, 'SILLAS_EXCEDE_MAXIMO');
   }
   const vistos = new Map();
   for (const c of valor) {
     const m = typeof c === 'string' ? /^([A-Za-z])(\d{1,2})$/.exec(c.trim()) : null;
     if (!m || Number(m[2]) < 1) {
-      throw new HttpError(400, `${campo}: "${String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1).`);
+      throw new HttpError(400, `${campo}: "${String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1).`, 'SILLA_CODIGO_INVALIDO');
     }
     const fila = m[1].toUpperCase();
     const numero = Number(m[2]);
@@ -50,7 +50,7 @@ export async function conTransaccion(fn) {
 // de su sala (A1, A2 ... B1 ...). Si ya existen no hace nada, y es seguro con peticiones simultáneas.
 export async function asegurarSillas(client, funcionId) {
   const { rowCount } = await client.query('SELECT 1 FROM funcion WHERE funcion_id = $1', [funcionId]);
-  if (!rowCount) throw new HttpError(404, `Función no encontrada con id: ${funcionId}`);
+  if (!rowCount) throw new HttpError(404, `Función no encontrada con id: ${funcionId}`, 'FUNCION_NO_ENCONTRADA');
   await client.query(
     `INSERT INTO silla (funcion_id, fila, numero)
      SELECT f.funcion_id, chr(64 + r), c
@@ -81,7 +81,7 @@ export async function leerSillasBloqueando(client, funcionId, codigos) {
   const porCodigo = new Map(rows.map((r) => [r.codigo, r]));
   const faltan = codigos.filter((c) => !porCodigo.has(c.codigo)).map((c) => c.codigo);
   if (faltan.length) {
-    throw new HttpError(404, `La(s) silla(s) ${faltan.join(', ')} no existe(n) en esta función.`);
+    throw new HttpError(404, `La(s) silla(s) ${faltan.join(', ')} no existe(n) en esta función.`, 'SILLA_NO_ENCONTRADA');
   }
   return rows;
 }

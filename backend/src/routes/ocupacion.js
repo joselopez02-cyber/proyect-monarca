@@ -17,7 +17,7 @@ router.get('/', requireAuth, requireRole('GESTOR'), async (req, res) => {
        FROM gestor g LEFT JOIN sucursal s ON s.bran_id = g.sucursal_id
       WHERE g.usuario_id = $1`, [req.user.usuarioId]);
   if (!gs[0] || gs[0].sucursal_id === null) {
-    throw new HttpError(403, 'No tienes una sucursal asignada. Pide al administrador que te asigne una.');
+    throw new HttpError(403, 'No tienes una sucursal asignada. Pide al administrador que te asigne una.', 'GESTOR_SIN_SUCURSAL');
   }
   const sucursalId = Number(gs[0].sucursal_id);
 

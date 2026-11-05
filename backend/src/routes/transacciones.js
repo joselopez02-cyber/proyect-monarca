@@ -53,9 +53,9 @@ router.get('/cliente/:custId', requireAuth, async (req, res) => {
   const custId = parseId(req.params.custId);
 
   const { rows: cs } = await pool.query('SELECT cust_id, usuario_id FROM cliente WHERE cust_id = $1', [custId]);
-  if (!cs[0]) throw new HttpError(404, `Cliente no encontrado con id: ${custId}`);
+  if (!cs[0]) throw new HttpError(404, `Cliente no encontrado con id: ${custId}`, 'CLIENTE_NO_ENCONTRADO');
   if (!esAdmin(req) && Number(cs[0].usuario_id) !== req.user.usuarioId) {
-    throw new HttpError(403, 'No puedes ver las transacciones de otro cliente.');
+    throw new HttpError(403, 'No puedes ver las transacciones de otro cliente.', 'CLIENTE_AJENO');
   }
 
   const { rows } = await pool.query(

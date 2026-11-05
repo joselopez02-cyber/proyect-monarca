@@ -46,7 +46,7 @@ export function validarPerfil(datos, { completo = false } = {}) {
     valores[columna] = v;
   }
 
-  if (errores.length) throw new HttpError(400, errores.join(', '));
+  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
   return valores;
 }
 
@@ -59,10 +59,10 @@ export async function verificarUnicos({ username, email, cedula }, excluirId = 0
   );
   for (const r of rows) {
     if (username && r.username === username)
-      throw new HttpError(400, `El username '${username}' ya está en uso.`);
+      throw new HttpError(400, `El username '${username}' ya está en uso.`, 'USERNAME_EN_USO');
     if (email && r.email === email)
-      throw new HttpError(400, `El email '${email}' ya está registrado.`);
+      throw new HttpError(400, `El email '${email}' ya está registrado.`, 'EMAIL_YA_REGISTRADO');
     if (cedula && r.cedula === cedula)
-      throw new HttpError(400, `La cédula '${cedula}' ya está registrada.`);
+      throw new HttpError(400, `La cédula '${cedula}' ya está registrada.`, 'CEDULA_YA_REGISTRADA');
   }
 }

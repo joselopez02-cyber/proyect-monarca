@@ -1,7 +1,7 @@
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import { HttpError } from './errors.js';
+import { HttpError, enviarError } from './errors.js';
 
 // Orígenes externos permitidos (separados por coma). El propio dominio de la app siempre se acepta.
 const permitidos = (process.env.CORS_ORIGINS || 'http://localhost:5173')
@@ -30,7 +30,7 @@ export const corsRestringido = cors((req, cb) => {
       maxAge: 600,
     });
   }
-  cb(new HttpError(403, 'Origen no permitido por CORS.'));
+  cb(new HttpError(403, 'Origen no permitido por CORS.', 'CORS_ORIGEN_NO_PERMITIDO'));
 });
 
 // Límite global por IP. Superarlo devuelve 429 con el encabezado Retry-After.
@@ -39,10 +39,8 @@ export const limiteGlobal = rateLimit({
   limit: Number(process.env.RATE_LIMIT_MAX) || 120,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  skip: (req) => req.path === '/health' || req.method === 'OPTIONS',
-  handler: (_req, res, _next, options) =>
-    res.status(options.statusCode).json({
-      timestamp: new Date().toISOString(),
-      error: 'Demasiadas peticiones. Intenta de nuevo más tarde.',
-    }),
+  // /api/health y /api/v1/health (el límite está montado en /api) no cuentan: Render los consulta a menudo
+  skip: (req) => /^\/(v1\/)?health$/.test(req.path) || req.method === 'OPTIONS',
+  handler: (req, res, _next, options) =>
+    enviarError(req, res, options.statusCode, 'Demasiadas peticiones. Intenta de nuevo más tarde.', 'DEMASIADAS_PETICIONES'),
 });

@@ -19,17 +19,17 @@ const esAdmin = (req) => req.user.rol === 'ADMIN';
 router.post('/procesar', requireAuth, async (req, res) => {
   const b = req.body ?? {};
   let resCode;
-  try { resCode = parseId(b.resCode); } catch { throw new HttpError(400, 'resCode: debe ser un número positivo.'); }
+  try { resCode = parseId(b.resCode); } catch { throw new HttpError(400, 'resCode: debe ser un número positivo.', 'ID_INVALIDO'); }
 
   const tipoPago = typeof b.tipoPago === 'string' ? b.tipoPago.trim().toUpperCase() : '';
   if (!TIPOS_PAGO.includes(tipoPago)) {
-    throw new HttpError(400, `tipoPago: debe ser uno de ${TIPOS_PAGO.join(', ')}.`);
+    throw new HttpError(400, `tipoPago: debe ser uno de ${TIPOS_PAGO.join(', ')}.`, 'TIPO_PAGO_INVALIDO');
   }
 
   let ultimos4 = null;
   if (esTarjeta(tipoPago)) {
     const num = String(b.numeroTarjeta ?? '').replace(/[\s-]/g, '');
-    if (!/^\d{13,19}$/.test(num)) throw new HttpError(400, 'numeroTarjeta: debe tener entre 13 y 19 dígitos.');
+    if (!/^\d{13,19}$/.test(num)) throw new HttpError(400, 'numeroTarjeta: debe tener entre 13 y 19 dígitos.', 'TARJETA_INVALIDA');
     ultimos4 = num.slice(-4); // el número completo NUNCA se guarda
   }
 
@@ -39,14 +39,14 @@ router.post('/procesar', requireAuth, async (req, res) => {
          FROM reserva r LEFT JOIN cliente c ON c.cust_id = r.cust_id
         WHERE r.res_code = $1 FOR UPDATE OF r`, [resCode]);
     const r = rows[0];
-    if (!r) throw new HttpError(404, `Reserva no encontrada con id: ${resCode}`);
+    if (!r) throw new HttpError(404, `Reserva no encontrada con id: ${resCode}`, 'RESERVA_NO_ENCONTRADA');
     if (!esAdmin(req) && Number(r.duenio_id) !== req.user.usuarioId) {
-      throw new HttpError(403, 'Esta reserva es de otro cliente.');
+      throw new HttpError(403, 'Esta reserva es de otro cliente.', 'RESERVA_AJENA');
     }
-    if (r.estado === 'CONFIRMADA') throw new HttpError(409, 'Esta reserva ya está pagada.');
-    if (r.estado === 'CANCELADA') throw new HttpError(409, 'Esta reserva está cancelada: no se puede pagar.');
+    if (r.estado === 'CONFIRMADA') throw new HttpError(409, 'Esta reserva ya está pagada.', 'RESERVA_YA_PAGADA');
+    if (r.estado === 'CANCELADA') throw new HttpError(409, 'Esta reserva está cancelada: no se puede pagar.', 'RESERVA_CANCELADA');
     const total = Number(r.total);
-    if (!(total > 0)) throw new HttpError(409, 'Esta reserva no tiene un total por pagar.');
+    if (!(total > 0)) throw new HttpError(409, 'Esta reserva no tiene un total por pagar.', 'RESERVA_SIN_TOTAL');
 
     const inicio = new Date().toISOString();
     const pago = procesarPago({ tipoPago, ultimos4, total });

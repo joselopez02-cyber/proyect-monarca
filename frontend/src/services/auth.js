@@ -24,7 +24,7 @@ const SESSION_KEYS = [
 
 /**
  * Realiza un POST a la API de autenticación con timeout configurable.
- * @param {string} endpoint  - Ruta relativa, ej. '/api/auth/login'
+ * @param {string} endpoint  - Ruta relativa, ej. '/api/v1/auth/login'
  * @param {object} body      - Payload JSON
  * @param {number} timeoutMs - Tiempo límite en ms
  * @returns {Promise<object>} Datos de la respuesta
@@ -142,7 +142,7 @@ export async function handleLogin(e) {
   const password = document.getElementById('l_pass')?.value;
 
   try {
-    const data = await _authPost('/api/auth/login', { username, password });
+    const data = await _authPost('/api/v1/auth/login', { username, password });
 
     _persistirSesion(data);
     window.dispatchEvent(new Event('monarca:authenticated'));
@@ -188,7 +188,7 @@ export async function handleRegister(e) {
   };
 
   try {
-    const data = await _authPost('/api/auth/register', payload);
+    const data = await _authPost('/api/v1/auth/register', payload);
 
     _persistirSesion(data);
     window.dispatchEvent(new Event('monarca:authenticated'));
@@ -341,7 +341,7 @@ async function obtenerTokenConfig() {
   errEl.style.display = 'none';
 
   try {
-    const data = await _authPost('/api/auth/login', { username: user, password: pass }, CONFIG_TIMEOUT_MS);
+    const data = await _authPost('/api/v1/auth/login', { username: user, password: pass }, CONFIG_TIMEOUT_MS);
     _cfgToken  = data.token;
 
     // Activar pestaña de token

@@ -20,7 +20,10 @@ if (typeof _autoBase === 'undefined') var _autoBase = window.location.origin;
 })();
 
 if (typeof _savedBase === 'undefined') var _savedBase = localStorage.getItem('monarca_api_base');
-export let API_BASE = (_savedBase || _autoBase || _AZURE_URL).replace(/\/api$/, '').replace(/\/$/, '');
+export let API_BASE = (_savedBase || _autoBase || _AZURE_URL).replace(/\/api(\/v1)?$/, '').replace(/\/$/, '');
+
+// KAN-54 (HT15): versión vigente de la API. /api sigue funcionando como alias, pero el frontend usa /api/v1.
+export const API_PREFIX = '/api/v1';
 
 // ── Token JWT ────────────────────────────────────────────────
 let JWT_TOKEN = (function () {
@@ -67,7 +70,7 @@ export async function api(path, method = 'GET', body = null) {
   const timer = setTimeout(() => controller.abort(), 12000);
 
   try {
-    const res = await fetch(`${API_BASE}/api${path}`, {
+    const res = await fetch(`${API_BASE}${API_PREFIX}${path}`, {
       method,
       headers,
       signal: controller.signal,
@@ -81,21 +84,19 @@ export async function api(path, method = 'GET', body = null) {
       throw new Error('Sesión expirada. Inicia sesión de nuevo.');
     }
 
-    if (res.status === 403) {
-      const t = await res.text();
-      throw new Error(t || 'No tienes permiso para esta operación.');
-    }
-
     if (!res.ok) {
       const text = await res.text();
       let errorMessage = `Error HTTP: ${res.status}`;
+      let codigo;
       try {
         const json = JSON.parse(text);
         errorMessage = json.error || json.message || errorMessage;
+        codigo = json.code;
       } catch {
         errorMessage = text || errorMessage;
       }
-      throw new Error(errorMessage);
+      // Contrato de errores (KAN-54): el Error lleva el status y el código estable (e.status, e.code)
+      throw Object.assign(new Error(errorMessage), { status: res.status, code: codigo });
     }
 
     setStatus(true);
@@ -123,13 +124,14 @@ export async function apiDescargar(path) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30000);
   try {
-    const res = await fetch(`${API_BASE}/api${path}`, { headers, signal: controller.signal });
+    const res = await fetch(`${API_BASE}${API_PREFIX}${path}`, { headers, signal: controller.signal });
     if (res.status === 401) { _handleSessionExpired(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
     if (!res.ok) {
       const text = await res.text();
       let msg = `Error HTTP: ${res.status}`;
-      try { const j = JSON.parse(text); msg = j.error || j.message || msg; } catch { if (text) msg = text; }
-      throw new Error(msg);
+      let codigo;
+      try { const j = JSON.parse(text); msg = j.error || j.message || msg; codigo = j.code; } catch { if (text) msg = text; }
+      throw Object.assign(new Error(msg), { status: res.status, code: codigo });
     }
     const m = /filename="?([^";]+)"?/i.exec(res.headers.get('Content-Disposition') || '');
     return { blob: await res.blob(), nombre: m ? m[1] : 'descarga' };
@@ -175,7 +177,7 @@ export async function testConexion() {
   const ctrl  = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
-    const res = await fetch(API_BASE + '/api/peliculas', {
+    const res = await fetch(API_BASE + API_PREFIX + '/peliculas', {
       headers: JWT_TOKEN ? { 'Authorization': 'Bearer ' + JWT_TOKEN } : {},
       signal: ctrl.signal,
     });
@@ -189,7 +191,7 @@ window.addEventListener('offline', () => setStatus(false));
 
 // ── Guardar/cambiar API_BASE desde Configuración ─────────────
 function guardarConfig() {
-  const inputVal = document.getElementById('apiBaseInput').value.trim().replace(/\/api$/, '').replace(/\/$/, '');
+  const inputVal = document.getElementById('apiBaseInput').value.trim().replace(/\/api(\/v1)?$/, '').replace(/\/$/, '');
   API_BASE = inputVal || window.location.origin;
   if (API_BASE !== window.location.origin) {
     localStorage.setItem('monarca_api_base', API_BASE);

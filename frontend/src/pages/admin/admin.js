@@ -85,7 +85,7 @@ async function cargarPeliculas() {
         <td class="mono text-muted">#${p.movieId}</td>
         <td>
           ${p.tienePoster
-            ? `<img src="${API_BASE}/api/peliculas/${p.movieId}/poster" class="poster-thumb" alt="poster" loading="lazy">`
+            ? `<img src="${API_BASE}/api/v1/peliculas/${p.movieId}/poster" class="poster-thumb" alt="poster" loading="lazy">`
             : `<div class="poster-placeholder" title="Sin poster" onclick="cargarEdicionPelicula(${p.movieId})"></div>`}
         </td>
         <td style="font-weight:600;">${p.nombre}</td>
@@ -121,7 +121,7 @@ function cargarEdicionPelicula(id) {
   document.getElementById('btn-cancel-p').style.display = 'inline-flex';
   _posterBase64 = null;
   if (p.tienePoster) {
-    fetch(`${API_BASE}/api/peliculas/${p.movieId}/poster`).then(r => r.json())
+    fetch(`${API_BASE}/api/v1/peliculas/${p.movieId}/poster`).then(r => r.json())
       .then(d => { if (d && d.posterUrl) mostrarPosterPreview(d.posterUrl); }).catch(() => {});
   } else { limpiarPosterForm(); }
   document.getElementById('p_titulo').focus();

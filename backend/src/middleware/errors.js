@@ -1,34 +1,73 @@
-// Error con código HTTP. Se lanza desde las rutas: throw new HttpError(400, '...')
+// Contrato estándar de errores de la API (KAN-54, HT15).
+// Toda respuesta de error, de cualquier endpoint, tiene este cuerpo:
+//   { timestamp, status, error, code, path }
+//   timestamp: momento del error (ISO 8601)        status: código HTTP
+//   error:     mensaje legible para la persona      path:   ruta pedida (sin query string)
+//   code:      identificador estable (MAYUSCULAS_CON_GUION_BAJO). El frontend debe decidir con el
+//              código, no con el texto del mensaje, que puede cambiar. Catálogo: backend/docs/codigos-de-error.md
+
+// Código por defecto cuando un error no trae uno propio
+const CODIGO_POR_ESTADO = {
+  400: 'SOLICITUD_INVALIDA',
+  401: 'NO_AUTENTICADO',
+  403: 'ACCESO_DENEGADO',
+  404: 'NO_ENCONTRADO',
+  409: 'CONFLICTO',
+  413: 'CUERPO_DEMASIADO_GRANDE',
+  415: 'TIPO_DE_CONTENIDO_NO_SOPORTADO',
+  429: 'DEMASIADAS_PETICIONES',
+  500: 'ERROR_INTERNO',
+  503: 'SERVICIO_NO_DISPONIBLE',
+};
+
+// Error con código HTTP y código estable. Se lanza desde las rutas:
+//   throw new HttpError(409, 'Esta reserva ya está pagada.', 'RESERVA_YA_PAGADA')
 export class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, code) {
     super(message);
     this.status = status;
+    this.code = code || CODIGO_POR_ESTADO[status] || 'ERROR';
   }
 }
 
-// Mismo formato de error que el backend original: { timestamp, error }
-const cuerpo = (mensaje) => ({ timestamp: new Date().toISOString(), error: mensaje });
-
-export function notFound(_req, res) {
-  res.status(404).json(cuerpo('Recurso no encontrado.'));
+export function cuerpoError(req, status, mensaje, codigo) {
+  return {
+    timestamp: new Date().toISOString(),
+    status,
+    error: mensaje,
+    code: codigo || CODIGO_POR_ESTADO[status] || 'ERROR',
+    path: (req.originalUrl || req.url || '').split('?')[0],
+  };
 }
 
-// Express exige 4 parámetros para reconocer un manejador de errores
-// eslint-disable-next-line no-unused-vars
-export function errorHandler(err, _req, res, _next) {
+export function enviarError(req, res, status, mensaje, codigo) {
+  res.status(status).json(cuerpoError(req, status, mensaje, codigo));
+}
+
+export function notFound(req, res) {
+  enviarError(req, res, 404, 'Recurso no encontrado.', 'RUTA_NO_ENCONTRADA');
+}
+
+export function errorHandler(err, req, res, next) {
+  if (res.headersSent) return next(err);
   if (err.type === 'entity.parse.failed') {
-    return res.status(400).json(cuerpo('El cuerpo de la petición no es un JSON válido.'));
+    return enviarError(req, res, 400, 'El cuerpo de la petición no es un JSON válido.', 'JSON_INVALIDO');
   }
   if (err.type === 'entity.too.large') {
-    return res.status(413).json(cuerpo('El cuerpo de la petición es demasiado grande.'));
+    return enviarError(req, res, 413, 'El cuerpo de la petición es demasiado grande.', 'CUERPO_DEMASIADO_GRANDE');
   }
   if (err instanceof HttpError) {
-    return res.status(err.status).json(cuerpo(err.message));
+    return enviarError(req, res, err.status, err.message, err.code);
   }
   // 23505 = violación de restricción UNIQUE en PostgreSQL (dos peticiones a la vez)
   if (err.code === '23505') {
-    return res.status(400).json(cuerpo('Ya existe un registro con esos datos.'));
+    return enviarError(req, res, 400, 'Ya existe un registro con esos datos.', 'REGISTRO_DUPLICADO');
+  }
+  // Otros errores de cliente de los middlewares (por ejemplo, un charset no soportado): sin exponer el detalle interno
+  const estado = Number(err.status ?? err.statusCode);
+  if (estado >= 400 && estado < 500) {
+    return enviarError(req, res, estado, 'Solicitud inválida.', CODIGO_POR_ESTADO[estado] || 'SOLICITUD_INVALIDA');
   }
   console.error(err);
-  res.status(500).json(cuerpo('Error interno del servidor.'));
+  enviarError(req, res, 500, 'Error interno del servidor.', 'ERROR_INTERNO');
 }

@@ -11,7 +11,7 @@ const router = Router();
 
 function leerPeticion(body = {}) {
   let funcionId;
-  try { funcionId = parseId(body.funcionId); } catch { throw new HttpError(400, 'funcionId: debe ser un número positivo.'); }
+  try { funcionId = parseId(body.funcionId); } catch { throw new HttpError(400, 'funcionId: debe ser un número positivo.', 'ID_INVALIDO'); }
   return { funcionId, codigos: normalizarCodigos(body.codigos) };
 }
 
@@ -73,7 +73,7 @@ router.post('/bloquear', requireAuth, async (req, res) => {
       const partes = [];
       if (ocupadas.length) partes.push(`ocupada(s): ${ocupadas.join(', ')}`);
       if (deOtro.length) partes.push(`bloqueada(s) por otro cliente: ${deOtro.join(', ')}`);
-      throw new HttpError(409, `No se pudo bloquear, ${partes.join('; ')}. No se bloqueó ninguna silla.`);
+      throw new HttpError(409, `No se pudo bloquear, ${partes.join('; ')}. No se bloqueó ninguna silla.`, 'SILLAS_NO_DISPONIBLES');
     }
 
     // Disponibles, vencidas o ya bloqueadas por ti (en ese caso se renueva el tiempo)
@@ -105,11 +105,11 @@ router.delete('/liberar', requireAuth, async (req, res) => {
 
     const ocupadas = sillas.filter((s) => s.estado === 'OCUPADA').map((s) => s.codigo);
     if (ocupadas.length) {
-      throw new HttpError(409, `La(s) silla(s) ${ocupadas.join(', ')} ya está(n) ocupada(s) y no se puede(n) liberar.`);
+      throw new HttpError(409, `La(s) silla(s) ${ocupadas.join(', ')} ya está(n) ocupada(s) y no se puede(n) liberar.`, 'SILLAS_OCUPADAS');
     }
     const deOtro = sillas.filter((s) => s.bloqueo_activo && s.bloqueado_por !== cliente).map((s) => s.codigo);
     if (deOtro.length) {
-      throw new HttpError(403, `La(s) silla(s) ${deOtro.join(', ')} está(n) bloqueada(s) por otro cliente.`);
+      throw new HttpError(403, `La(s) silla(s) ${deOtro.join(', ')} está(n) bloqueada(s) por otro cliente.`, 'SILLAS_BLOQUEADAS_POR_OTRO');
     }
 
     // Las que estaban disponibles o vencidas ya están libres: no hay nada que hacer con ellas

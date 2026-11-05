@@ -26,8 +26,8 @@ export function leerRango(query) {
   const errores = [];
   if (!fechaValida(desde)) errores.push('desde: usa el formato yyyy-MM-dd');
   if (!fechaValida(hasta)) errores.push('hasta: usa el formato yyyy-MM-dd');
-  if (errores.length) throw new HttpError(400, errores.join(', '));
-  if (desde > hasta) throw new HttpError(400, 'desde: no puede ser posterior a hasta');
+  if (errores.length) throw new HttpError(400, errores.join(', '), 'RANGO_FECHAS_INVALIDO');
+  if (desde > hasta) throw new HttpError(400, 'desde: no puede ser posterior a hasta', 'RANGO_FECHAS_INVALIDO');
   return { desde, hasta };
 }
 

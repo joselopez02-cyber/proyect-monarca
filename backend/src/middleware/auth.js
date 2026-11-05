@@ -8,14 +8,14 @@ import { HttpError } from './errors.js';
 export async function requireAuth(req, _res, next) {
   const [esquema, token] = (req.headers.authorization || '').split(' ');
   if (esquema !== 'Bearer' || !token) {
-    throw new HttpError(401, 'Token requerido. Inicia sesión.');
+    throw new HttpError(401, 'Token requerido. Inicia sesión.', 'TOKEN_REQUERIDO');
   }
 
   let claims;
   try {
     claims = verificarToken(token);
   } catch {
-    throw new HttpError(401, 'Token inválido o expirado.');
+    throw new HttpError(401, 'Token inválido o expirado.', 'TOKEN_INVALIDO');
   }
 
   const { rows } = await pool.query(
@@ -23,7 +23,7 @@ export async function requireAuth(req, _res, next) {
     [claims.sub]
   );
   const u = rows[0];
-  if (!u || !u.activo) throw new HttpError(401, 'Token inválido o expirado.');
+  if (!u || !u.activo) throw new HttpError(401, 'Token inválido o expirado.', 'TOKEN_INVALIDO');
 
   req.user = {
     usuarioId: Number(u.usuario_id),
@@ -36,9 +36,9 @@ export async function requireAuth(req, _res, next) {
 
 // Uso: router.post('/', requireAuth, requireRole('ADMIN'), ...)
 export const requireRole = (...roles) => (req, _res, next) => {
-  if (!req.user) throw new HttpError(401, 'Token requerido. Inicia sesión.');
+  if (!req.user) throw new HttpError(401, 'Token requerido. Inicia sesión.', 'TOKEN_REQUERIDO');
   if (!roles.includes(req.user.rol)) {
-    throw new HttpError(403, 'No tienes permiso para esta operación.');
+    throw new HttpError(403, 'No tienes permiso para esta operación.', 'PERMISO_DENEGADO');
   }
   next();
 };

@@ -39,20 +39,20 @@ router.post('/', async (req, res) => {
 
   const { rows: us } = await pool.query('SELECT * FROM usuario WHERE usuario_id = $1', [uid]);
   const u = us[0];
-  if (!u) throw new HttpError(404, `Usuario no encontrado con id: ${uid}`);
-  if (!u.activo) throw new HttpError(400, 'El usuario está desactivado.');
+  if (!u) throw new HttpError(404, `Usuario no encontrado con id: ${uid}`, 'USUARIO_NO_ENCONTRADO');
+  if (!u.activo) throw new HttpError(400, 'El usuario está desactivado.', 'USUARIO_DESACTIVADO');
   if (u.rol !== 'GESTOR') {
-    throw new HttpError(400, 'Solo se puede asignar un usuario con rol GESTOR. Cambia su rol primero.');
+    throw new HttpError(400, 'Solo se puede asignar un usuario con rol GESTOR. Cambia su rol primero.', 'USUARIO_NO_ES_GESTOR');
   }
 
   const { rows: ss } = await pool.query('SELECT bran_id FROM sucursal WHERE bran_id = $1', [sid]);
-  if (!ss[0]) throw new HttpError(404, `Sucursal no encontrada con id: ${sid}`);
+  if (!ss[0]) throw new HttpError(404, `Sucursal no encontrada con id: ${sid}`, 'SUCURSAL_NO_ENCONTRADA');
 
   const { rows: ya } = await pool.query(
     `SELECT s.bran_location FROM gestor g LEFT JOIN sucursal s ON s.bran_id = g.sucursal_id
       WHERE g.usuario_id = $1`, [uid]);
   if (ya[0]) {
-    throw new HttpError(400, `El usuario ya está asignado a una sucursal (${ya[0].bran_location}). Quita esa asignación primero.`);
+    throw new HttpError(400, `El usuario ya está asignado a una sucursal (${ya[0].bran_location}). Quita esa asignación primero.`, 'GESTOR_YA_ASIGNADO');
   }
 
   const detalles = u.nombre_completo || u.username;
@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const id = parseId(req.params.id);
   const { rowCount } = await pool.query('DELETE FROM gestor WHERE manager_id = $1', [id]);
-  if (!rowCount) throw new HttpError(404, `Gestor no encontrado con id: ${id}`);
+  if (!rowCount) throw new HttpError(404, `Gestor no encontrado con id: ${id}`, 'GESTOR_NO_ENCONTRADO');
   res.json({ mensaje: 'Asignación eliminada' });
 });
 
