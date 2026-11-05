@@ -111,6 +111,36 @@ export async function api(path, method = 'GET', body = null) {
   }
 }
 
+/**
+ * Descarga un archivo (por ejemplo un CSV) con la sesión actual (KAN-51, HU28).
+ * Un enlace <a href> no envía el token JWT, por eso se pide con fetch y se entrega como Blob.
+ * @param {string} path  Ruta relativa, ej: '/reportes/ventas/csv?desde=...&hasta=...'
+ * @returns {Promise<{blob: Blob, nombre: string}>}
+ */
+export async function apiDescargar(path) {
+  const headers = {};
+  if (JWT_TOKEN) headers['Authorization'] = `Bearer ${JWT_TOKEN}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${API_BASE}/api${path}`, { headers, signal: controller.signal });
+    if (res.status === 401) { _handleSessionExpired(); throw new Error('Sesión expirada. Inicia sesión de nuevo.'); }
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `Error HTTP: ${res.status}`;
+      try { const j = JSON.parse(text); msg = j.error || j.message || msg; } catch { if (text) msg = text; }
+      throw new Error(msg);
+    }
+    const m = /filename="?([^";]+)"?/i.exec(res.headers.get('Content-Disposition') || '');
+    return { blob: await res.blob(), nombre: m ? m[1] : 'descarga' };
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Tiempo de espera agotado. Verifica tu conexión.');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Manejo de sesión expirada ────────────────────────────────
 /**
  * Limpia el storage y notifica a la UI cuando el token caduca (401).

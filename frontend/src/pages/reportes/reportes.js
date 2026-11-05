@@ -1,15 +1,17 @@
 /* ============================================================
    reportes.js — Reporte de ventas (KAN-42, HU24)
+   y exportación a CSV (KAN-51, HU28)
    Depende de: api.js, utils.js
    ============================================================ */
 
-import { api } from '../../services/api.js';
+import { api, apiDescargar } from '../../services/api.js';
 import { escHtml, showAlert } from '../../utils/utils.js';
 
 const fmt = (n) => (Number(n) < 0 ? '-$' : '$') + Math.abs(Number(n || 0)).toLocaleString('es-CO');
 const hoyColombia = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
 // Rango del reporte que se está viendo en pantalla
+let rangoMostrado = null;
 
 function mostrarError(msg) {
   const el = document.getElementById('rep-error');
@@ -76,6 +78,9 @@ export async function cargarReporteVentas() {
   try {
     const rep = await api(`/reportes/ventas?desde=${desde}&hasta=${hasta}`);
     pintarReporte(rep);
+    rangoMostrado = { desde, hasta };
+    const exp = document.getElementById('rep-exportar');
+    if (exp) exp.disabled = false;
   } catch (e) {
     mostrarError(e.message);
   } finally {
@@ -92,4 +97,26 @@ export function iniciarReportes() {
   cargarReporteVentas();
 }
 
-Object.assign(window, { cargarReporteVentas, iniciarReportes });
+// KAN-51 (HU28): descarga el CSV del mismo rango que se ve en pantalla (la misma consulta del servidor)
+export async function exportarReporteCsv() {
+  if (!rangoMostrado) return showAlert('Primero consulta el reporte.', 'error');
+  const boton = document.getElementById('rep-exportar');
+  if (boton) boton.disabled = true;
+  try {
+    const { blob, nombre } = await apiDescargar(`/reportes/ventas/csv?desde=${rangoMostrado.desde}&hasta=${rangoMostrado.hasta}`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    showAlert(e.message || 'No se pudo descargar el CSV.', 'error');
+  } finally {
+    if (boton) boton.disabled = false;
+  }
+}
+
+Object.assign(window, { cargarReporteVentas, exportarReporteCsv, iniciarReportes });
