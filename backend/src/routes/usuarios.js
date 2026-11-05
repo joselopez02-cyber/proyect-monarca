@@ -10,7 +10,7 @@ const ROLES = ['USER', 'GESTOR', 'ADMIN'];
 
 router.use(requireAuth);
 
-const noEncontrado = (id) => new HttpError(404, `Usuario no encontrado con id: ${id}`);
+const noEncontrado = (id) => new HttpError(404, `Usuario no encontrado con id: ${id}`, 'USUARIO_NO_ENCONTRADO');
 
 router.get('/', requireRole('ADMIN'), async (_req, res) => {
   const { rows } = await pool.query('SELECT * FROM usuario ORDER BY usuario_id');
@@ -28,7 +28,7 @@ router.get('/:id', requireRole('ADMIN'), async (req, res) => {
 router.patch('/:id/rol', requireRole('ADMIN'), async (req, res) => {
   const id = parseId(req.params.id);
   const rol = typeof req.body?.rol === 'string' ? req.body.rol.trim().toUpperCase() : '';
-  if (!ROLES.includes(rol)) throw new HttpError(400, `rol: debe ser ${ROLES.join(', ')}`);
+  if (!ROLES.includes(rol)) throw new HttpError(400, `rol: debe ser ${ROLES.join(', ')}`, 'ROL_INVALIDO');
 
   const { rowCount } = await pool.query('UPDATE usuario SET rol = $1 WHERE usuario_id = $2', [rol, id]);
   if (!rowCount) throw noEncontrado(id);
@@ -39,14 +39,14 @@ router.patch('/:id/rol', requireRole('ADMIN'), async (req, res) => {
 router.patch('/:id/perfil', async (req, res) => {
   const id = parseId(req.params.id);
   if (req.user.rol !== 'ADMIN' && req.user.usuarioId !== id) {
-    throw new HttpError(403, 'No puedes modificar el perfil de otro usuario.');
+    throw new HttpError(403, 'No puedes modificar el perfil de otro usuario.', 'PERFIL_AJENO');
   }
 
   // Solo se aceptan los campos de perfil; "rol" o "activo" en el cuerpo se ignoran
   const valores = validarPerfil(req.body ?? {});
   const columnas = Object.keys(valores);
   if (!columnas.length) {
-    throw new HttpError(400, `Envía al menos un campo: ${Object.keys(CAMPOS_PERFIL).join(', ')}`);
+    throw new HttpError(400, `Envía al menos un campo: ${Object.keys(CAMPOS_PERFIL).join(', ')}`, 'SIN_CAMPOS_PARA_ACTUALIZAR');
   }
   await verificarUnicos({ email: valores.email, cedula: valores.cedula }, id);
 

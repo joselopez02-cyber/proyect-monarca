@@ -26,7 +26,7 @@ const aPelicula = (r) => ({
 
 async function buscar(id) {
   const { rows } = await pool.query(`SELECT ${COLUMNAS} FROM pelicula WHERE movie_id = $1`, [id]);
-  if (!rows[0]) throw new HttpError(404, `Película no encontrada con id: ${id}`);
+  if (!rows[0]) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   return aPelicula(rows[0]);
 }
 
@@ -49,7 +49,7 @@ function validarPelicula(b) {
   if (!clasificacion) errores.push('clasificacion: no puede estar vacía');
   else if (clasificacion.length > 10) errores.push('clasificacion: máximo 10 caracteres');
   if (genero && genero.length > 50) errores.push('genero: máximo 50 caracteres');
-  if (errores.length) throw new HttpError(400, errores.join(', '));
+  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
 
   return { nombre, descripcion, duracion, clasificacion, genero };
 }
@@ -73,8 +73,8 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/poster', async (req, res) => {
   const id = parseId(req.params.id);
   const { rows } = await pool.query('SELECT poster_url FROM pelicula WHERE movie_id = $1', [id]);
-  if (!rows[0]) throw new HttpError(404, `Película no encontrada con id: ${id}`);
-  if (!rows[0].poster_url) throw new HttpError(404, 'Esta película no tiene póster.');
+  if (!rows[0]) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
+  if (!rows[0].poster_url) throw new HttpError(404, 'Esta película no tiene póster.', 'POSTER_NO_ENCONTRADO');
   res.json({ posterUrl: rows[0].poster_url });
 });
 
@@ -93,14 +93,14 @@ router.post('/:id/poster', ...soloAdmin, async (req, res) => {
   const id = parseId(req.params.id);
   const poster = validarPoster(req.body?.posterUrl);
   const { rowCount } = await pool.query('UPDATE pelicula SET poster_url = $1 WHERE movie_id = $2', [poster, id]);
-  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`);
+  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   res.json(await buscar(id));
 });
 
 router.delete('/:id/poster', ...soloAdmin, async (req, res) => {
   const id = parseId(req.params.id);
   const { rowCount } = await pool.query('UPDATE pelicula SET poster_url = NULL WHERE movie_id = $1', [id]);
-  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`);
+  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   res.json(await buscar(id));
 });
 
@@ -111,7 +111,7 @@ router.put('/:id', ...soloAdmin, async (req, res) => {
     `UPDATE pelicula SET nombre = $1, descripcion = $2, duracion_min = $3, genero = $4, clasificacion = $5
       WHERE movie_id = $6`,
     [v.nombre, v.descripcion, v.duracion, v.genero, v.clasificacion, id]);
-  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`);
+  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   res.json(await buscar(id));
 });
 
@@ -120,10 +120,10 @@ router.delete('/:id', ...soloAdmin, async (req, res) => {
   // La base borraría en cascada sus funciones; mejor obligar a quitarlas primero
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM funcion WHERE movie_id = $1', [id]);
   if (rows[0].n > 0) {
-    throw new HttpError(409, `No se puede eliminar: la película tiene ${rows[0].n} función(es) programada(s).`);
+    throw new HttpError(409, `No se puede eliminar: la película tiene ${rows[0].n} función(es) programada(s).`, 'PELICULA_CON_FUNCIONES');
   }
   const { rowCount } = await pool.query('DELETE FROM pelicula WHERE movie_id = $1', [id]);
-  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`);
+  if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   res.status(204).end();
 });
 

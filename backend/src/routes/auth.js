@@ -33,7 +33,7 @@ router.post('/register', async (req, res) => {
   if (!username) errores.push('username: no puede estar vacío');
   else if (username.length > 80) errores.push('username: máximo 80 caracteres');
   if (password.length < 6) errores.push('password: debe tener mínimo 6 caracteres');
-  if (errores.length) throw new HttpError(400, errores.join(', '));
+  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
 
   const perfil = validarPerfil(b, { completo: true });
   await verificarUnicos({ username, email: perfil.email, cedula: perfil.cedula ?? null });
@@ -62,7 +62,7 @@ router.post('/login', async (req, res) => {
   const espera = segundosBloqueado(ip);
   if (espera > 0) {
     res.set('Retry-After', String(espera));
-    throw new HttpError(429, `Demasiados intentos fallidos. Intenta en ${espera} segundos.`);
+    throw new HttpError(429, `Demasiados intentos fallidos. Intenta en ${espera} segundos.`, 'LOGIN_BLOQUEADO');
   }
 
   const username = texto(req.body?.username);
@@ -76,7 +76,7 @@ router.post('/login', async (req, res) => {
   const claveCorrecta = await bcrypt.compare(password, u?.password_hash ?? HASH_FALSO);
   if (!u || !u.activo || !claveCorrecta) {
     registrarFallo(ip);
-    throw new HttpError(401, 'Credenciales inválidas');
+    throw new HttpError(401, 'Credenciales inválidas', 'CREDENCIALES_INVALIDAS');
   }
 
   registrarExito(ip);
@@ -95,21 +95,21 @@ router.patch('/password', requireAuth, async (req, res) => {
   if (!actual) errores.push('passwordActual: es obligatoria');
   if (nueva.length < 6) errores.push('passwordNueva: debe tener mínimo 6 caracteres');
   else if (Buffer.byteLength(nueva, 'utf8') > 72) errores.push('passwordNueva: máximo 72 bytes (límite de bcrypt)');
-  if (errores.length) throw new HttpError(400, errores.join(', '));
-  if (nueva === actual) throw new HttpError(400, 'passwordNueva: debe ser distinta a la actual');
+  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
+  if (nueva === actual) throw new HttpError(400, 'passwordNueva: debe ser distinta a la actual', 'PASSWORD_IGUAL_A_ACTUAL');
 
   const clave = `pwd:${req.user.usuarioId}`;
   const espera = segundosBloqueado(clave);
   if (espera > 0) {
     res.set('Retry-After', String(espera));
-    throw new HttpError(429, `Demasiados intentos fallidos. Intenta en ${espera} segundos.`);
+    throw new HttpError(429, `Demasiados intentos fallidos. Intenta en ${espera} segundos.`, 'CAMBIO_PASSWORD_BLOQUEADO');
   }
 
   const { rows } = await pool.query('SELECT password_hash FROM usuario WHERE usuario_id = $1', [req.user.usuarioId]);
   const correcta = await bcrypt.compare(actual, rows[0]?.password_hash ?? HASH_FALSO);
   if (!rows[0] || !correcta) {
     registrarFallo(clave);
-    throw new HttpError(400, 'La contraseña actual es incorrecta.');
+    throw new HttpError(400, 'La contraseña actual es incorrecta.', 'PASSWORD_ACTUAL_INCORRECTA');
   }
 
   registrarExito(clave);

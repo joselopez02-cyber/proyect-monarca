@@ -1,6 +1,7 @@
 import express from 'express';
 import * as dbModule from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { HttpError } from '../middleware/errors.js';
 
 // Acepta que db.js exporte el pool directo, { pool } o { query }.
 const db = dbModule.pool || dbModule.default?.pool || dbModule.default || dbModule;
@@ -50,12 +51,9 @@ function conAsientos(sala) {
   return { ...sala, asientos: generarAsientos(filas, columnas, sala.tipo) };
 }
 
-function idValido(valor, nombre, res) {
+function idValido(valor, nombre) {
   const id = Number(valor);
-  if (!Number.isInteger(id) || id <= 0) {
-    res.status(400).json({ error: nombre + ' invalido.' });
-    return null;
-  }
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, nombre + ' invalido.', 'ID_INVALIDO');
   return id;
 }
 
@@ -116,7 +114,7 @@ router.get('/tipo/:tipo', async (req, res, next) => {
   try {
     const tipo = normalizarTipo(req.params.tipo);
     if (!tipo) {
-      return res.status(400).json({ error: 'Tipo de sala invalido: ' + req.params.tipo + '. Valores validos: PRO, 3D, 2D' });
+      throw new HttpError(400, 'Tipo de sala invalido: ' + req.params.tipo + '. Valores validos: PRO, 3D, 2D', 'TIPO_SALA_INVALIDO');
     }
     const { rows } = await db.query(`${SELECT_SALA} WHERE sa.tipo::text = $1 ORDER BY sa.sala_id`, [tipo]);
     res.json(rows);
@@ -126,9 +124,9 @@ router.get('/tipo/:tipo', async (req, res, next) => {
 // Solo la matriz de asientos de una sala
 router.get('/:id/asientos', async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sala');
     const sala = await obtenerSala(id);
-    if (!sala) return res.status(404).json({ error: 'Sala no encontrada con id: ' + id });
+    if (!sala) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.json({
       salaId: sala.salaId, filas: sala.filas, columnas: sala.columnas,
       capacidad: sala.capacidad, tipo: sala.tipo,
@@ -139,9 +137,9 @@ router.get('/:id/asientos', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sala');
     const sala = await obtenerSala(id);
-    if (!sala) return res.status(404).json({ error: 'Sala no encontrada con id: ' + id });
+    if (!sala) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.json(conAsientos(sala));
   } catch (e) { next(e); }
 });
@@ -150,9 +148,9 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', ...soloAdmin, async (req, res, next) => {
   try {
     const v = validar(req.body);
-    if (v.error) return res.status(400).json({ error: v.error });
+    if (v.error) throw new HttpError(400, v.error, 'DATOS_INVALIDOS');
     if (!(await existeSucursal(v.branId))) {
-      return res.status(404).json({ error: 'Sucursal no encontrada con id: ' + v.branId });
+      throw new HttpError(404, 'Sucursal no encontrada con id: ' + v.branId, 'SUCURSAL_NO_ENCONTRADA');
     }
     const ins = await db.query(
       `INSERT INTO sala (nombre, tipo, capacidad, filas, columnas, sucursal_id)
@@ -166,18 +164,18 @@ router.post('/', ...soloAdmin, async (req, res, next) => {
 // Editar una sala (recalcula capacidad y matriz)
 router.put('/:id', ...soloAdmin, async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sala');
     const v = validar(req.body);
-    if (v.error) return res.status(400).json({ error: v.error });
+    if (v.error) throw new HttpError(400, v.error, 'DATOS_INVALIDOS');
     if (!(await existeSucursal(v.branId))) {
-      return res.status(404).json({ error: 'Sucursal no encontrada con id: ' + v.branId });
+      throw new HttpError(404, 'Sucursal no encontrada con id: ' + v.branId, 'SUCURSAL_NO_ENCONTRADA');
     }
     const r = await db.query(
       `UPDATE sala SET nombre = $1, tipo = $2, capacidad = $3, filas = $4, columnas = $5, sucursal_id = $6
        WHERE sala_id = $7`,
       [v.nombre, v.tipo, v.capacidad, v.filas, v.columnas, v.branId, id]
     );
-    if (!r.rowCount) return res.status(404).json({ error: 'Sala no encontrada con id: ' + id });
+    if (!r.rowCount) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.json(conAsientos(await obtenerSala(id)));
   } catch (e) { next(e); }
 });
@@ -185,13 +183,13 @@ router.put('/:id', ...soloAdmin, async (req, res, next) => {
 // Eliminar una sala
 router.delete('/:id', ...soloAdmin, async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sala');
     const r = await db.query('DELETE FROM sala WHERE sala_id = $1', [id]);
-    if (!r.rowCount) return res.status(404).json({ error: 'Sala no encontrada con id: ' + id });
+    if (!r.rowCount) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.status(204).end();
   } catch (e) {
     if (e.code === '23503') {
-      return res.status(409).json({ error: 'No se puede eliminar: la sala tiene datos asociados.' });
+      return next(new HttpError(409, 'No se puede eliminar: la sala tiene datos asociados.', 'SALA_CON_DATOS_ASOCIADOS'));
     }
     next(e);
   }

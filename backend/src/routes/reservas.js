@@ -38,7 +38,7 @@ const aReserva = (r) => ({
 });
 
 const idCampo = (valor, campo) => {
-  try { return parseId(valor); } catch { throw new HttpError(400, `${campo}: debe ser un número positivo.`); }
+  try { return parseId(valor); } catch { throw new HttpError(400, `${campo}: debe ser un número positivo.`, 'ID_INVALIDO'); }
 };
 
 // Mis reservas (un ADMIN ve todas)
@@ -52,9 +52,9 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/:id', requireAuth, async (req, res) => {
   const id = parseId(req.params.id);
   const { rows } = await pool.query(`${SELECT_RESERVA} WHERE r.res_code = $1`, [id]);
-  if (!rows[0]) throw new HttpError(404, `Reserva no encontrada con id: ${id}`);
+  if (!rows[0]) throw new HttpError(404, `Reserva no encontrada con id: ${id}`, 'RESERVA_NO_ENCONTRADA');
   if (!esAdmin(req) && Number(rows[0].duenio_id) !== req.user.usuarioId) {
-    throw new HttpError(403, 'Esta reserva es de otro cliente.');
+    throw new HttpError(403, 'Esta reserva es de otro cliente.', 'RESERVA_AJENA');
   }
   res.json(aReserva(rows[0]));
 });
@@ -70,8 +70,8 @@ router.post('/', requireAuth, async (req, res) => {
   const custIdPedido = b.custId === undefined || b.custId === null ? null : idCampo(b.custId, 'custId');
   const nombreIn = texto(b.nombre);
   const contNumIn = texto(b.contNum);
-  if (nombreIn && nombreIn.length > 255) throw new HttpError(400, 'nombre: máximo 255 caracteres.');
-  if (contNumIn && contNumIn.length > 100) throw new HttpError(400, 'contNum: máximo 100 caracteres.');
+  if (nombreIn && nombreIn.length > 255) throw new HttpError(400, 'nombre: máximo 255 caracteres.', 'CAMPO_DEMASIADO_LARGO');
+  if (contNumIn && contNumIn.length > 100) throw new HttpError(400, 'contNum: máximo 100 caracteres.', 'CAMPO_DEMASIADO_LARGO');
 
   const resCode = await conTransaccion(async (client) => {
     // 1) La función existe y todavía no empieza (hora de Colombia)
@@ -79,8 +79,8 @@ router.post('/', requireAuth, async (req, res) => {
       `SELECT f.fecha, f.hora_inicio, f.precio_boleto,
               ((f.fecha || ' ' || f.hora_inicio)::timestamp < (NOW() AT TIME ZONE $2)) AS ya_empezo
          FROM funcion f WHERE f.funcion_id = $1`, [funcionId, ZONA]);
-    if (!fs[0]) throw new HttpError(404, `Función no encontrada con id: ${funcionId}`);
-    if (fs[0].ya_empezo) throw new HttpError(409, 'Esta función ya comenzó; no se puede reservar.');
+    if (!fs[0]) throw new HttpError(404, `Función no encontrada con id: ${funcionId}`, 'FUNCION_NO_ENCONTRADA');
+    if (fs[0].ya_empezo) throw new HttpError(409, 'Esta función ya comenzó; no se puede reservar.', 'FUNCION_YA_COMENZO');
 
     // 2) El cliente: el indicado (solo si es tuyo, o si eres ADMIN) o, por defecto, el tuyo
     const { rows: cs } = custIdPedido
@@ -88,12 +88,12 @@ router.post('/', requireAuth, async (req, res) => {
       : await client.query('SELECT * FROM cliente WHERE usuario_id = $1', [req.user.usuarioId]);
     if (!cs[0]) {
       throw custIdPedido
-        ? new HttpError(404, `Cliente no encontrado con id: ${custIdPedido}`)
-        : new HttpError(400, 'Primero registra tus datos de cliente (POST /api/clientes).');
+        ? new HttpError(404, `Cliente no encontrado con id: ${custIdPedido}`, 'CLIENTE_NO_ENCONTRADO')
+        : new HttpError(400, 'Primero registra tus datos de cliente (POST /api/clientes).', 'CLIENTE_NO_REGISTRADO');
     }
     const cliente = cs[0];
     if (!esAdmin(req) && Number(cliente.usuario_id) !== req.user.usuarioId) {
-      throw new HttpError(403, 'No puedes crear reservas a nombre de otro cliente.');
+      throw new HttpError(403, 'No puedes crear reservas a nombre de otro cliente.', 'RESERVA_A_NOMBRE_DE_OTRO');
     }
 
     // 3) Las sillas: se bloquean (FOR UPDATE) y deben estar bloqueadas a tu nombre y vigentes
@@ -112,7 +112,7 @@ router.post('/', requireAuth, async (req, res) => {
       if (ocupadas.length) partes.push(`ocupada(s): ${ocupadas.join(', ')}`);
       if (deOtro.length) partes.push(`bloqueada(s) por otro cliente: ${deOtro.join(', ')}`);
       if (sinBloqueo.length) partes.push(`sin bloqueo vigente a tu nombre (bloquéalas de nuevo): ${sinBloqueo.join(', ')}`);
-      throw new HttpError(409, `No se pudo crear la reserva, ${partes.join('; ')}. No se reservó ninguna silla.`);
+      throw new HttpError(409, `No se pudo crear la reserva, ${partes.join('; ')}. No se reservó ninguna silla.`, 'SILLAS_NO_DISPONIBLES');
     }
 
     // 4) Crear la reserva y marcar las sillas como ocupadas
@@ -157,15 +157,15 @@ async function liberarReserva(req, id, modo) {
         WHERE r.res_code = $1
           FOR UPDATE OF r`, [id, ZONA]);
     const r = rows[0];
-    if (!r) throw new HttpError(404, `Reserva no encontrada con id: ${id}`);
+    if (!r) throw new HttpError(404, `Reserva no encontrada con id: ${id}`, 'RESERVA_NO_ENCONTRADA');
     if (!esAdmin(req) && Number(r.duenio_id) !== req.user.usuarioId) {
-      throw new HttpError(403, 'Esta reserva es de otro cliente.');
+      throw new HttpError(403, 'Esta reserva es de otro cliente.', 'RESERVA_AJENA');
     }
     if (modo === 'cancelar' && r.estado === 'CANCELADA') {
-      throw new HttpError(409, 'La reserva ya estaba cancelada.');
+      throw new HttpError(409, 'La reserva ya estaba cancelada.', 'RESERVA_YA_CANCELADA');
     }
     if (r.estado !== 'CANCELADA' && r.ya_empezo && !esAdmin(req)) {
-      throw new HttpError(409, 'Esta función ya comenzó; la reserva ya no se puede cancelar.');
+      throw new HttpError(409, 'Esta función ya comenzó; la reserva ya no se puede cancelar.', 'RESERVA_NO_CANCELABLE');
     }
 
     const reembolso = r.estado === 'CONFIRMADA' && !r.ya_empezo

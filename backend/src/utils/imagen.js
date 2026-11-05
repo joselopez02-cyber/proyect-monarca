@@ -13,27 +13,27 @@ const FIRMAS = {
 // Devuelve el texto listo para guardar en pelicula.poster_url.
 export function validarPoster(valor) {
   if (typeof valor !== 'string' || valor.trim() === '') {
-    throw new HttpError(400, 'posterUrl: es obligatorio.');
+    throw new HttpError(400, 'posterUrl: es obligatorio.', 'POSTER_OBLIGATORIO');
   }
   const v = valor.trim();
 
   if (/^https:\/\//i.test(v)) {
-    if (v.length > 500 || /\s/.test(v)) throw new HttpError(400, 'posterUrl: el enlace no es válido.');
-    try { new URL(v); } catch { throw new HttpError(400, 'posterUrl: el enlace no es válido.'); }
+    if (v.length > 500 || /\s/.test(v)) throw new HttpError(400, 'posterUrl: el enlace no es válido.', 'POSTER_ENLACE_INVALIDO');
+    try { new URL(v); } catch { throw new HttpError(400, 'posterUrl: el enlace no es válido.', 'POSTER_ENLACE_INVALIDO'); }
     return v;
   }
 
   if (v.length > Math.ceil((MAX_BYTES * 4) / 3) + 100) {
-    throw new HttpError(400, 'El póster supera el máximo de 2 MB.');
+    throw new HttpError(400, 'El póster supera el máximo de 2 MB.', 'POSTER_DEMASIADO_GRANDE');
   }
   const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(v);
   if (!m) {
-    throw new HttpError(400, 'posterUrl: debe ser una imagen PNG, JPEG o WEBP en Base64 (data:image/...;base64,...) o un enlace https.');
+    throw new HttpError(400, 'posterUrl: debe ser una imagen PNG, JPEG o WEBP en Base64 (data:image/...;base64,...) o un enlace https.', 'POSTER_FORMATO_INVALIDO');
   }
   const bytes = Buffer.from(m[2], 'base64');
-  if (bytes.length > MAX_BYTES) throw new HttpError(400, 'El póster supera el máximo de 2 MB.');
+  if (bytes.length > MAX_BYTES) throw new HttpError(400, 'El póster supera el máximo de 2 MB.', 'POSTER_DEMASIADO_GRANDE');
   if (!FIRMAS[m[1]](bytes)) {
-    throw new HttpError(400, `posterUrl: el contenido no es una imagen ${m[1].slice(6).toUpperCase()} válida.`);
+    throw new HttpError(400, `posterUrl: el contenido no es una imagen ${m[1].slice(6).toUpperCase()} válida.`, 'POSTER_CONTENIDO_INVALIDO');
   }
   return v;
 }

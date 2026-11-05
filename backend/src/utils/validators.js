@@ -23,7 +23,7 @@ export const esEmail = (v) => {
 // Convierte el id de la URL en número o lanza 400
 export function parseId(valor) {
   if (!/^\d{1,15}$/.test(String(valor)) || Number(valor) <= 0) {
-    throw new HttpError(400, 'El id debe ser un número positivo.');
+    throw new HttpError(400, 'El id debe ser un número positivo.', 'ID_INVALIDO');
   }
   return Number(valor);
 }

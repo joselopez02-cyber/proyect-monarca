@@ -1,6 +1,7 @@
 import express from 'express';
 import * as dbModule from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { HttpError } from '../middleware/errors.js';
 
 // Acepta que db.js exporte el pool directo, { pool } o { query }.
 const db = dbModule.pool || dbModule.default?.pool || dbModule.default || dbModule;
@@ -25,12 +26,9 @@ const SELECT_SUCURSAL = `
   FROM sucursal s
   LEFT JOIN cine c ON c.cine_id = s.cine_id`;
 
-function idValido(valor, nombre, res) {
+function idValido(valor, nombre) {
   const id = Number(valor);
-  if (!Number.isInteger(id) || id <= 0) {
-    res.status(400).json({ error: nombre + ' invalido.' });
-    return null;
-  }
+  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, nombre + ' invalido.', 'ID_INVALIDO');
   return id;
 }
 
@@ -67,7 +65,7 @@ router.get('/', async (_req, res, next) => {
 // Sucursales de un cine
 router.get('/cine/:cineId', async (req, res, next) => {
   try {
-    const cineId = idValido(req.params.cineId, 'Id de cine', res); if (cineId === null) return;
+    const cineId = idValido(req.params.cineId, 'Id de cine');
     const { rows } = await db.query(`${SELECT_SUCURSAL} WHERE s.cine_id = $1 ORDER BY s.bran_id`, [cineId]);
     res.json(rows);
   } catch (e) { next(e); }
@@ -75,9 +73,9 @@ router.get('/cine/:cineId', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sucursal', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sucursal');
     const s = await obtenerSucursal(id);
-    if (!s) return res.status(404).json({ error: 'Sucursal no encontrada con id: ' + id });
+    if (!s) throw new HttpError(404, 'Sucursal no encontrada con id: ' + id, 'SUCURSAL_NO_ENCONTRADA');
     res.json(s);
   } catch (e) { next(e); }
 });
@@ -86,14 +84,14 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', ...soloAdmin, async (req, res, next) => {
   try {
     const u = leerUbicacion(req.body);
-    if (u.error) return res.status(400).json({ error: u.error });
+    if (u.error) throw new HttpError(400, u.error, 'DATOS_INVALIDOS');
     const rawCine = leerCineId(req);
     if (rawCine === undefined || rawCine === null || rawCine === '') {
-      return res.status(400).json({ error: 'Debes indicar el cine de la sucursal.' });
+      throw new HttpError(400, 'Debes indicar el cine de la sucursal.', 'CINE_REQUERIDO');
     }
-    const cineId = idValido(rawCine, 'Id de cine', res); if (cineId === null) return;
+    const cineId = idValido(rawCine, 'Id de cine');
     if (!(await existeCine(cineId))) {
-      return res.status(404).json({ error: 'Cine no encontrado con id: ' + cineId });
+      throw new HttpError(404, 'Cine no encontrado con id: ' + cineId, 'CINE_NO_ENCONTRADO');
     }
     const ins = await db.query(
       'INSERT INTO sucursal (bran_location, cine_id) VALUES ($1, $2) RETURNING bran_id',
@@ -106,22 +104,22 @@ router.post('/', ...soloAdmin, async (req, res, next) => {
 // Editar una sucursal (ubicacion y, si se envia, el cine)
 router.put('/:id', ...soloAdmin, async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sucursal', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sucursal');
     const u = leerUbicacion(req.body);
-    if (u.error) return res.status(400).json({ error: u.error });
+    if (u.error) throw new HttpError(400, u.error, 'DATOS_INVALIDOS');
     const rawCine = leerCineId(req);
     let cineId = null;
     if (rawCine !== undefined && rawCine !== null && rawCine !== '') {
-      cineId = idValido(rawCine, 'Id de cine', res); if (cineId === null) return;
+      cineId = idValido(rawCine, 'Id de cine');
       if (!(await existeCine(cineId))) {
-        return res.status(404).json({ error: 'Cine no encontrado con id: ' + cineId });
+        throw new HttpError(404, 'Cine no encontrado con id: ' + cineId, 'CINE_NO_ENCONTRADO');
       }
     }
     const r = await db.query(
       'UPDATE sucursal SET bran_location = $1, cine_id = COALESCE($2, cine_id) WHERE bran_id = $3',
       [u.ubicacion, cineId, id]
     );
-    if (!r.rowCount) return res.status(404).json({ error: 'Sucursal no encontrada con id: ' + id });
+    if (!r.rowCount) throw new HttpError(404, 'Sucursal no encontrada con id: ' + id, 'SUCURSAL_NO_ENCONTRADA');
     res.json(await obtenerSucursal(id));
   } catch (e) { next(e); }
 });
@@ -129,13 +127,13 @@ router.put('/:id', ...soloAdmin, async (req, res, next) => {
 // Eliminar una sucursal
 router.delete('/:id', ...soloAdmin, async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sucursal', res); if (id === null) return;
+    const id = idValido(req.params.id, 'Id de sucursal');
     const r = await db.query('DELETE FROM sucursal WHERE bran_id = $1', [id]);
-    if (!r.rowCount) return res.status(404).json({ error: 'Sucursal no encontrada con id: ' + id });
+    if (!r.rowCount) throw new HttpError(404, 'Sucursal no encontrada con id: ' + id, 'SUCURSAL_NO_ENCONTRADA');
     res.status(204).end();
   } catch (e) {
     if (e.code === '23503') {
-      return res.status(409).json({ error: 'No se puede eliminar: la sucursal tiene datos asociados.' });
+      return next(new HttpError(409, 'No se puede eliminar: la sucursal tiene datos asociados.', 'SUCURSAL_CON_DATOS_ASOCIADOS'));
     }
     next(e);
   }
