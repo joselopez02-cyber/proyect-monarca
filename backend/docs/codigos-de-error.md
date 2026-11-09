@@ -8,52 +8,64 @@ Toda respuesta de error (KAN-54, HT15) tiene el mismo cuerpo:
   "status": 409,
   "error": "Esta reserva ya está pagada.",
   "code": "RESERVA_YA_PAGADA",
-  "path": "/api/v1/pagos"
+  "path": "/api/v1/pagos/procesar"
 }
 ```
 
 - `code` es el identificador **estable**: el frontend debe decidir con él, no con el texto de `error`, que puede cambiar.
 - Las rutas están en `/api/v1`; `/api` se mantiene como alias mientras se migran los clientes.
 - Si un error no trae código propio, se usa el de su estado: `SOLICITUD_INVALIDA` (400), `NO_AUTENTICADO` (401), `ACCESO_DENEGADO` (403), `NO_ENCONTRADO` (404), `CONFLICTO` (409), `DEMASIADAS_PETICIONES` (429), `ERROR_INTERNO` (500).
-- Para agregar un código nuevo: `throw new HttpError(409, 'Mensaje.', 'NUEVO_CODIGO')` y añadirlo a esta tabla.
+
+## Errores de validación (KAN-57, HT18)
+
+Todo endpoint que recibe datos (cuerpo, parámetros de la ruta o query string) los valida con el mismo mecanismo (`backend/src/middleware/validar.js`).
+Si algún campo no cumple, responde **400** con `code: "DATOS_INVALIDOS"` y la lista completa de campos inválidos en `errores`:
+
+```json
+{
+  "timestamp": "2026-11-05T18:30:00.000Z",
+  "status": 400,
+  "error": "nombre: es obligatorio, duracionMin: debe ser un entero entre 1 y 600 minutos",
+  "code": "DATOS_INVALIDOS",
+  "path": "/api/v1/peliculas",
+  "errores": [
+    { "campo": "nombre", "motivo": "es obligatorio", "en": "body" },
+    { "campo": "duracionMin", "motivo": "debe ser un entero entre 1 y 600 minutos", "en": "body" }
+  ]
+}
+```
+
+- `campo`: nombre del campo (en una lista, con su posición: `horarios[1]`). `motivo`: por qué no es válido. `en`: `body`, `params` o `query`.
+- Se revisan **todos** los campos y se devuelven juntos, no solo el primero. Los campos que no están en el esquema se ignoran.
+- Las reglas que dependen de la base de datos (que exista, que no esté repetido, permisos) no son de validación: tienen sus propios códigos (tabla de abajo).
+
+Para validar un endpoint nuevo se declara un esquema y los valores ya limpios llegan en `req.datos`:
+
+```js
+import { validar, texto, entero } from '../middleware/validar.js';
+
+router.post('/', validar({ body: { nombre: texto({ requerido: true, max: 255 }), edad: entero({ min: 0, max: 120 }) } }), async (req, res) => {
+  const { nombre, edad } = req.datos.body;
+});
+```
+
+Reglas disponibles: `texto`, `clave`, `entero`, `idPositivo`, `numero`, `correo`, `fecha`, `hora`, `enumerado`, `booleano`, `lista` y `personalizada`. Las reglas entre varios campos van en `cruzada`.
+
+## Códigos
+
+Para agregar un código nuevo: `throw new HttpError(409, 'Mensaje.', 'NUEVO_CODIGO')` y añadirlo a esta tabla.
 
 | Status | Código | Ejemplo de mensaje |
 |---|---|---|
-| 400 | `CAMPO_DEMASIADO_LARGO` | nombre: máximo 255 caracteres. |
 | 400 | `CEDULA_YA_REGISTRADA` | La cédula '{cedula}' ya está registrada. |
-| 400 | `CINE_REQUERIDO` | Debes indicar el cine de la sucursal. |
 | 400 | `CLIENTE_NO_REGISTRADO` | Primero registra tus datos de cliente (POST /api/clientes). |
-| 400 | `DATOS_INVALIDOS` | Uno o más campos no cumplen las reglas; el mensaje los lista. |
+| 400 | `DATOS_INVALIDOS` | Uno o más campos no cumplen las reglas; la lista completa viene en "errores". |
 | 400 | `EMAIL_YA_REGISTRADO` | El email '{email}' ya está registrado. |
-| 400 | `FECHA_FORMATO_INVALIDO` | {campo}: usa el formato AAAA-MM-DD. |
-| 400 | `FECHA_INVALIDA` | {campo}: no es una fecha válida. |
-| 400 | `FECHA_REQUERIDA` | Indica la fecha (fecha) o un rango (fechaInicio y fechaFin). |
 | 400 | `GESTOR_YA_ASIGNADO` | El usuario ya está asignado a una sucursal ({ya[0].bran_location}). Quita esa asign |
-| 400 | `HORARIOS_EXCEDE_MAXIMO` | Máximo {MAX_HORARIOS} horarios por día. |
-| 400 | `HORA_FORMATO_INVALIDO` | {campo}: usa el formato HH:mm (24 horas), por ejemplo 19:30. |
-| 400 | `HORA_REQUERIDA` | Indica la hora (hora) o una lista de horarios (horarios). |
-| 400 | `ID_INVALIDO` | El id (o un campo de id) no es un número positivo. |
 | 400 | `JSON_INVALIDO` | El cuerpo de la petición no es un JSON válido. |
 | 400 | `PASSWORD_ACTUAL_INCORRECTA` | La contraseña actual es incorrecta. |
-| 400 | `PASSWORD_IGUAL_A_ACTUAL` | passwordNueva: debe ser distinta a la actual |
 | 400 | `PELICULA_SIN_DURACION` | La película no tiene duración registrada; edítala antes de programarla. |
-| 400 | `POSTER_CONTENIDO_INVALIDO` | posterUrl: el contenido no es una imagen {m[1].slice(6).toUpperCase()} válida. |
-| 400 | `POSTER_DEMASIADO_GRANDE` | El póster supera el máximo de 2 MB. |
-| 400 | `POSTER_ENLACE_INVALIDO` | posterUrl: el enlace no es válido. |
-| 400 | `POSTER_FORMATO_INVALIDO` | 'posterUrl: debe ser una imagen PNG, JPEG o WEBP en Base64 (data:image/...;base64,... |
-| 400 | `POSTER_OBLIGATORIO` | posterUrl: es obligatorio. |
-| 400 | `PRECIO_INVALIDO` | precioBoleto: debe ser un número mayor que 0 (en pesos). |
-| 400 | `RANGO_EXCEDE_MAXIMO` | El rango no puede superar {MAX_DIAS} días. |
-| 400 | `RANGO_FECHAS_INVALIDO` | Rango de fechas inválido (por ejemplo, "desde" posterior a "hasta"). |
 | 400 | `REGISTRO_DUPLICADO` | Ya existe un registro con esos datos (restricción UNIQUE). |
-| 400 | `ROL_INVALIDO` | rol: debe ser {ROLES.join(', ')} |
-| 400 | `SILLAS_EXCEDE_MAXIMO` | {campo}: máximo {MAX_SILLAS_POR_BLOQUEO} sillas por solicitud. |
-| 400 | `SILLAS_REQUERIDAS` | {campo}: indica al menos una silla, por ejemplo ["A1","A2"]. |
-| 400 | `SILLA_CODIGO_INVALIDO` | {campo}: "{String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1). |
-| 400 | `SIN_CAMPOS_PARA_ACTUALIZAR` | Envía al menos un campo: {Object.keys(CAMPOS_PERFIL).join(', ')} |
-| 400 | `TARJETA_INVALIDA` | numeroTarjeta: debe tener entre 13 y 19 dígitos. |
-| 400 | `TIPO_PAGO_INVALIDO` | tipoPago: debe ser uno de {TIPOS_PAGO.join(', ')}. |
-| 400 | `TIPO_SALA_INVALIDO` | Tipo de sala invalido: ' + req.params.tipo + '. Valores validos: PRO, 3D, 2D |
 | 400 | `USERNAME_EN_USO` | El username '{username}' ya está en uso. |
 | 400 | `USUARIO_DESACTIVADO` | El usuario está desactivado. |
 | 400 | `USUARIO_NO_ES_GESTOR` | Solo se puede asignar un usuario con rol GESTOR. Cambia su rol primero. |
@@ -96,7 +108,7 @@ Toda respuesta de error (KAN-54, HT15) tiene el mismo cuerpo:
 | 409 | `RESERVA_YA_CANCELADA` | La reserva ya estaba cancelada. |
 | 409 | `RESERVA_YA_PAGADA` | Esta reserva ya está pagada. |
 | 409 | `SALA_CON_DATOS_ASOCIADOS` | No se puede eliminar: la sala tiene datos asociados. |
-| 409 | `SILLAS_NO_DISPONIBLES` | No se pudo reservar o bloquear: alguna silla ya no está disponible; no se tomó ninguna. |
+| 409 | `SILLAS_NO_DISPONIBLES` | No se pudo crear la reserva, {partes.join('; ')}. No se reservó ninguna silla. |
 | 409 | `SILLAS_OCUPADAS` | La(s) silla(s) {ocupadas.join(', ')} ya está(n) ocupada(s) y no se puede(n) liberar |
 | 409 | `SUCURSAL_CON_DATOS_ASOCIADOS` | No se puede eliminar: la sucursal tiene datos asociados. |
 | 413 | `CUERPO_DEMASIADO_GRANDE` | El cuerpo de la petición supera el límite permitido. |

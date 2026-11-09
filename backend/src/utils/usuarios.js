@@ -1,6 +1,6 @@
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
-import { texto, esEmail } from './validators.js';
+import { texto, correo, fecha } from '../middleware/validar.js';
 
 // Nunca se devuelve password_hash
 export const aUsuario = (r) => ({
@@ -17,38 +17,30 @@ export const aUsuario = (r) => ({
   fechaNacimiento: r.fecha_nacimiento,
 });
 
-// Campos del perfil: nombre en el JSON -> [columna, largo máximo]
-export const CAMPOS_PERFIL = {
-  nombreCompleto: ['nombre_completo', 255],
-  cedula: ['cedula', 20],
-  telefono: ['telefono', 30],
-  direccion: ['direccion', 500],
-  fechaNacimiento: ['fecha_nacimiento', 10],
-  email: ['email', 150],
+// Campos del perfil: nombre en el JSON -> columna de la tabla usuario
+export const COLUMNAS_PERFIL = {
+  nombreCompleto: 'nombre_completo',
+  cedula: 'cedula',
+  telefono: 'telefono',
+  direccion: 'direccion',
+  fechaNacimiento: 'fecha_nacimiento',
+  email: 'email',
 };
 
-// Valida los campos de perfil presentes en `datos`. Devuelve { columna: valor }.
+// Esquema de validación de los campos de perfil (registro y PATCH /usuarios/:id/perfil).
 // Si `completo` es true, el email es obligatorio (registro).
-export function validarPerfil(datos, { completo = false } = {}) {
-  const errores = [];
-  const valores = {};
+export const esquemaPerfil = ({ completo = false } = {}) => ({
+  nombreCompleto: texto({ max: 255 }),
+  cedula: texto({ max: 20 }),
+  telefono: texto({ max: 30 }),
+  direccion: texto({ max: 500 }),
+  fechaNacimiento: fecha(),
+  email: correo({ requerido: completo, permiteVacio: false, max: 150 }),
+});
 
-  for (const [campo, [columna, maximo]] of Object.entries(CAMPOS_PERFIL)) {
-    if (!(campo in datos) && !(completo && campo === 'email')) continue;
-    const v = texto(datos[campo]);
-
-    if (campo === 'email' && !v) errores.push('email: debe ser un correo válido');
-    else if (v && v.length > maximo) errores.push(`${campo}: máximo ${maximo} caracteres`);
-    else if (campo === 'email' && !esEmail(v)) errores.push('email: debe ser un correo válido');
-    else if (campo === 'fechaNacimiento' && v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-      errores.push('fechaNacimiento: formato yyyy-MM-dd');
-    }
-    valores[columna] = v;
-  }
-
-  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
-  return valores;
-}
+// { nombreCompleto: 'Ana' } -> { nombre_completo: 'Ana' } (solo los campos presentes)
+export const aColumnas = (valores) =>
+  Object.fromEntries(Object.entries(valores).map(([campo, v]) => [COLUMNAS_PERFIL[campo], v]));
 
 // Lanza 400 si el username, email o cédula ya los usa OTRO usuario
 export async function verificarUnicos({ username, email, cedula }, excluirId = 0) {

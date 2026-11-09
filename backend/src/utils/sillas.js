@@ -1,5 +1,6 @@
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
+import { personalizada } from '../middleware/validar.js';
 
 // Cuánto dura el bloqueo de una silla mientras el cliente decide (5 minutos).
 // Para probar la expiración sin esperar: SILLAS_TTL_SEG=10 npm run dev
@@ -9,26 +10,22 @@ export const MAX_SILLAS_POR_BLOQUEO = 10;
 export const textoTtl = () =>
   TTL_SEG >= 60 ? `${Math.round(TTL_SEG / 60)} minuto(s)` : `${TTL_SEG} segundos`;
 
-// ["a1", "A2"] -> [{ codigo: "A1", fila: "A", numero: 1 }, ...] (valida formato, quita repetidas)
-export function normalizarCodigos(valor, campo = 'codigos') {
-  if (!Array.isArray(valor) || valor.length === 0) {
-    throw new HttpError(400, `${campo}: indica al menos una silla, por ejemplo ["A1","A2"].`, 'SILLAS_REQUERIDAS');
-  }
-  if (valor.length > MAX_SILLAS_POR_BLOQUEO) {
-    throw new HttpError(400, `${campo}: máximo ${MAX_SILLAS_POR_BLOQUEO} sillas por solicitud.`, 'SILLAS_EXCEDE_MAXIMO');
-  }
+// Regla del validador para una lista de sillas: ["a1", "A2"] -> [{ codigo: "A1", fila: "A", numero: 1 }, ...]
+// (valida el formato y quita las repetidas)
+const MSG_SILLAS = 'indica al menos una silla, por ejemplo ["A1","A2"]';
+export const reglaSillas = () => personalizada((valor) => {
+  if (!Array.isArray(valor) || valor.length === 0) return { error: MSG_SILLAS };
+  if (valor.length > MAX_SILLAS_POR_BLOQUEO) return { error: `máximo ${MAX_SILLAS_POR_BLOQUEO} sillas por solicitud` };
   const vistos = new Map();
   for (const c of valor) {
     const m = typeof c === 'string' ? /^([A-Za-z])(\d{1,2})$/.exec(c.trim()) : null;
-    if (!m || Number(m[2]) < 1) {
-      throw new HttpError(400, `${campo}: "${String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1).`, 'SILLA_CODIGO_INVALIDO');
-    }
+    if (!m || Number(m[2]) < 1) return { error: `"${String(c).slice(0, 20)}" no es un código de silla válido (ejemplo: A1)` };
     const fila = m[1].toUpperCase();
     const numero = Number(m[2]);
     vistos.set(`${fila}${numero}`, { codigo: `${fila}${numero}`, fila, numero });
   }
-  return [...vistos.values()];
-}
+  return { valor: [...vistos.values()] };
+}, { requerido: true, msgRequerido: MSG_SILLAS });
 
 // Ejecuta fn(client) dentro de una transacción (COMMIT si sale bien, ROLLBACK si lanza error)
 export async function conTransaccion(fn) {

@@ -1,5 +1,5 @@
 import pool from '../db.js';
-import { HttpError } from '../middleware/errors.js';
+import { fecha } from '../middleware/validar.js';
 import { ZONA } from './horarios.js';
 
 // KAN-42 (HU24): reporte de ventas. Lo usan la pantalla (GET /api/reportes/ventas) y,
@@ -12,24 +12,13 @@ import { ZONA } from './horarios.js';
 //  - El rango filtra por la fecha de la transacción en hora de Colombia, con ambos extremos inclusivos.
 //  - Se agrupa por función; las filas salen ordenadas por película, fecha y hora.
 
-const FORMATO_FECHA = /^\d{4}-\d{2}-\d{2}$/;
-
-function fechaValida(v) {
-  if (!FORMATO_FECHA.test(v)) return false;
-  const d = new Date(`${v}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
-}
-
-export function leerRango(query) {
-  const desde = typeof query?.desde === 'string' ? query.desde.trim() : '';
-  const hasta = typeof query?.hasta === 'string' ? query.hasta.trim() : '';
-  const errores = [];
-  if (!fechaValida(desde)) errores.push('desde: usa el formato yyyy-MM-dd');
-  if (!fechaValida(hasta)) errores.push('hasta: usa el formato yyyy-MM-dd');
-  if (errores.length) throw new HttpError(400, errores.join(', '), 'RANGO_FECHAS_INVALIDO');
-  if (desde > hasta) throw new HttpError(400, 'desde: no puede ser posterior a hasta', 'RANGO_FECHAS_INVALIDO');
-  return { desde, hasta };
-}
+// Esquema del validador para ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD (se usa en la pantalla y en el CSV)
+export const RANGO_FECHAS = {
+  query: { desde: fecha({ requerido: true }), hasta: fecha({ requerido: true }) },
+  cruzada: (d, err) => {
+    if (d.query.desde > d.query.hasta) err('desde', 'no puede ser posterior a hasta', 'query');
+  },
+};
 
 // Dinero en centavos enteros para que las sumas no arrastren errores de decimales
 const centavos = (v) => Math.round(Number(v || 0) * 100);

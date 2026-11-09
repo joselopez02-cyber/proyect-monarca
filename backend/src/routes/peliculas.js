@@ -2,8 +2,8 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { parseId, texto } from '../utils/validators.js';
-import { validarPoster } from '../utils/imagen.js';
+import { validar, texto, entero, PARAM_ID } from '../middleware/validar.js';
+import { reglaPoster } from '../utils/imagen.js';
 
 const router = Router();
 
@@ -24,39 +24,31 @@ const aPelicula = (r) => ({
   tienePoster: r.tiene_poster,
 });
 
+// Esquemas de entrada (KAN-57). titulo, sinopsis y duracion son alias del backend anterior.
+const PELICULA = {
+  nombre: texto({ requerido: true, max: 255, alias: ['titulo'] }),
+  descripcion: texto({ requerido: true, msgVacio: 'la sinopsis no puede estar vacía', alias: ['sinopsis'] }),
+  duracionMin: entero({ requerido: true, min: 1, max: 600, motivo: 'debe ser un entero entre 1 y 600 minutos', alias: ['duracion'] }),
+  clasificacion: texto({ requerido: true, max: 10 }),
+  genero: texto({ max: 50 }),
+};
+const datosPelicula = (b) => ({
+  nombre: b.nombre,
+  descripcion: b.descripcion,
+  duracion: b.duracionMin,
+  clasificacion: b.clasificacion,
+  genero: b.genero ?? null,
+});
+
 async function buscar(id) {
   const { rows } = await pool.query(`SELECT ${COLUMNAS} FROM pelicula WHERE movie_id = $1`, [id]);
   if (!rows[0]) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   return aPelicula(rows[0]);
 }
 
-// Acepta los nombres del ticket (titulo, sinopsis, duracion) y los de la base (nombre, descripcion, duracionMin)
-function validarPelicula(b) {
-  const nombre = texto(b.nombre ?? b.titulo);
-  const descripcion = texto(b.descripcion ?? b.sinopsis);
-  const clasificacion = texto(b.clasificacion);
-  const genero = texto(b.genero);
-  let duracion = b.duracionMin ?? b.duracion;
-  if (typeof duracion === 'string' && duracion.trim() !== '') duracion = Number(duracion);
-
-  const errores = [];
-  if (!nombre) errores.push('nombre: no puede estar vacío');
-  else if (nombre.length > 255) errores.push('nombre: máximo 255 caracteres');
-  if (!descripcion) errores.push('descripcion: la sinopsis no puede estar vacía');
-  if (!Number.isInteger(duracion) || duracion < 1 || duracion > 600) {
-    errores.push('duracionMin: debe ser un entero entre 1 y 600 minutos');
-  }
-  if (!clasificacion) errores.push('clasificacion: no puede estar vacía');
-  else if (clasificacion.length > 10) errores.push('clasificacion: máximo 10 caracteres');
-  if (genero && genero.length > 50) errores.push('genero: máximo 50 caracteres');
-  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
-
-  return { nombre, descripcion, duracion, clasificacion, genero };
-}
-
 // Listado (opcional ?nombre=texto)
-router.get('/', async (req, res) => {
-  const nombre = typeof req.query.nombre === 'string' ? req.query.nombre.trim() : '';
+router.get('/', validar({ query: { nombre: texto({ max: 255 }) } }), async (req, res) => {
+  const nombre = req.datos.query.nombre ?? '';
   const { rows } = nombre
     ? await pool.query(
         `SELECT ${COLUMNAS} FROM pelicula WHERE nombre ILIKE '%' || $1 || '%' ORDER BY movie_id`,
@@ -65,13 +57,13 @@ router.get('/', async (req, res) => {
   res.json(rows.map(aPelicula));
 });
 
-router.get('/:id', async (req, res) => {
-  res.json(await buscar(parseId(req.params.id)));
+router.get('/:id', validar(PARAM_ID), async (req, res) => {
+  res.json(await buscar(req.datos.params.id));
 });
 
 // El póster va aparte para no cargar la imagen en cada listado
-router.get('/:id/poster', async (req, res) => {
-  const id = parseId(req.params.id);
+router.get('/:id/poster', validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rows } = await pool.query('SELECT poster_url FROM pelicula WHERE movie_id = $1', [id]);
   if (!rows[0]) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   if (!rows[0].poster_url) throw new HttpError(404, 'Esta película no tiene póster.', 'POSTER_NO_ENCONTRADO');
@@ -79,8 +71,8 @@ router.get('/:id/poster', async (req, res) => {
 });
 
 // KAN-19 (HU06) paso 1: registrar la película con sus datos
-router.post('/', ...soloAdmin, async (req, res) => {
-  const v = validarPelicula(req.body ?? {});
+router.post('/', ...soloAdmin, validar({ body: PELICULA }), async (req, res) => {
+  const v = datosPelicula(req.datos.body);
   const { rows } = await pool.query(
     `INSERT INTO pelicula (nombre, descripcion, duracion_min, genero, clasificacion)
      VALUES ($1, $2, $3, $4, $5) RETURNING movie_id`,
@@ -89,24 +81,24 @@ router.post('/', ...soloAdmin, async (req, res) => {
 });
 
 // KAN-19 (HU06) paso 2: subir el póster. Cuerpo: { "posterUrl": "data:image/png;base64,..." }
-router.post('/:id/poster', ...soloAdmin, async (req, res) => {
-  const id = parseId(req.params.id);
-  const poster = validarPoster(req.body?.posterUrl);
+router.post('/:id/poster', ...soloAdmin, validar({ ...PARAM_ID, body: { posterUrl: reglaPoster() } }), async (req, res) => {
+  const { id } = req.datos.params;
+  const poster = req.datos.body.posterUrl;
   const { rowCount } = await pool.query('UPDATE pelicula SET poster_url = $1 WHERE movie_id = $2', [poster, id]);
   if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   res.json(await buscar(id));
 });
 
-router.delete('/:id/poster', ...soloAdmin, async (req, res) => {
-  const id = parseId(req.params.id);
+router.delete('/:id/poster', ...soloAdmin, validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rowCount } = await pool.query('UPDATE pelicula SET poster_url = NULL WHERE movie_id = $1', [id]);
   if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${id}`, 'PELICULA_NO_ENCONTRADA');
   res.json(await buscar(id));
 });
 
-router.put('/:id', ...soloAdmin, async (req, res) => {
-  const id = parseId(req.params.id);
-  const v = validarPelicula(req.body ?? {});
+router.put('/:id', ...soloAdmin, validar({ ...PARAM_ID, body: PELICULA }), async (req, res) => {
+  const { id } = req.datos.params;
+  const v = datosPelicula(req.datos.body);
   const { rowCount } = await pool.query(
     `UPDATE pelicula SET nombre = $1, descripcion = $2, duracion_min = $3, genero = $4, clasificacion = $5
       WHERE movie_id = $6`,
@@ -115,8 +107,8 @@ router.put('/:id', ...soloAdmin, async (req, res) => {
   res.json(await buscar(id));
 });
 
-router.delete('/:id', ...soloAdmin, async (req, res) => {
-  const id = parseId(req.params.id);
+router.delete('/:id', ...soloAdmin, validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   // La base borraría en cascada sus funciones; mejor obligar a quitarlas primero
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM funcion WHERE movie_id = $1', [id]);
   if (rows[0].n > 0) {

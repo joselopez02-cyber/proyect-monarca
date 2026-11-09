@@ -2,23 +2,20 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
-import { parseId } from '../utils/validators.js';
+import { validar, idPositivo } from '../middleware/validar.js';
 import {
-  TTL_SEG, textoTtl, normalizarCodigos, conTransaccion, asegurarSillas, leerSillasBloqueando, estadoVisible,
+  TTL_SEG, textoTtl, reglaSillas, conTransaccion, asegurarSillas, leerSillasBloqueando, estadoVisible,
 } from '../utils/sillas.js';
 
 const router = Router();
 
-function leerPeticion(body = {}) {
-  let funcionId;
-  try { funcionId = parseId(body.funcionId); } catch { throw new HttpError(400, 'funcionId: debe ser un número positivo.', 'ID_INVALIDO'); }
-  return { funcionId, codigos: normalizarCodigos(body.codigos) };
-}
+// Esquema del cuerpo de /bloquear y /liberar (KAN-57)
+const PETICION = { funcionId: idPositivo({ requerido: true }), codigos: reglaSillas() };
 
 // KAN-26 (HU13): mapa de sillas de una función, con el estado de cada una.
 // Es público (como la cartelera) y no revela quién bloqueó cada silla.
-router.get('/funcion/:funcionId', async (req, res) => {
-  const funcionId = parseId(req.params.funcionId);
+router.get('/funcion/:funcionId', validar({ params: { funcionId: idPositivo({ requerido: true }) } }), async (req, res) => {
+  const { funcionId } = req.datos.params;
 
   // Si es la primera vez que se consulta la función, sus sillas se crean aquí
   await conTransaccion((client) => asegurarSillas(client, funcionId));
@@ -58,8 +55,8 @@ router.get('/funcion/:funcionId', async (req, res) => {
 // Cuerpo: { "funcionId": 11, "codigos": ["A1", "A2"] }. Todo o nada.
 // Si otro cliente ya la bloqueó (o está ocupada) responde 409. Si el cliente no confirma,
 // el bloqueo vence solo a los TTL_SEG segundos (o se libera antes con DELETE /api/sillas/liberar).
-router.post('/bloquear', requireAuth, async (req, res) => {
-  const { funcionId, codigos } = leerPeticion(req.body);
+router.post('/bloquear', requireAuth, validar({ body: PETICION }), async (req, res) => {
+  const { funcionId, codigos } = req.datos.body;
   const cliente = req.user.username;
 
   await conTransaccion(async (client) => {
@@ -95,8 +92,8 @@ router.post('/bloquear', requireAuth, async (req, res) => {
 
 // Liberar antes de que venza el TTL. Solo libera sillas bloqueadas por el cliente que llama.
 // Cuerpo: { "funcionId": 11, "codigos": ["A1", "A2"] }
-router.delete('/liberar', requireAuth, async (req, res) => {
-  const { funcionId, codigos } = leerPeticion(req.body);
+router.delete('/liberar', requireAuth, validar({ body: PETICION }), async (req, res) => {
+  const { funcionId, codigos } = req.datos.body;
   const cliente = req.user.username;
 
   await conTransaccion(async (client) => {

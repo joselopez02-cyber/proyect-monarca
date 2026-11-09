@@ -5,10 +5,25 @@ import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { segundosBloqueado, registrarFallo, registrarExito } from '../middleware/loginLimiter.js';
 import { firmarToken } from '../utils/jwt.js';
-import { texto } from '../utils/validators.js';
-import { validarPerfil, verificarUnicos } from '../utils/usuarios.js';
+import { validar, texto, clave } from '../middleware/validar.js';
+import { esquemaPerfil, aColumnas, verificarUnicos } from '../utils/usuarios.js';
 
 const router = Router();
+
+// Esquemas de entrada (KAN-57, HT18)
+const ESQUEMA_REGISTRO = {
+  username: texto({ requerido: true, max: 80 }),
+  password: clave({ requerido: true, min: 6 }),
+  ...esquemaPerfil({ completo: true }),
+};
+const ESQUEMA_LOGIN = { username: texto({ requerido: true }), password: clave({ requerido: true }) };
+const ESQUEMA_CAMBIO_PASSWORD = {
+  passwordActual: clave({ requerido: true }),
+  passwordNueva: clave({ requerido: true, min: 6, maxBytes: 72 }),
+};
+const nuevaDistintaDeLaActual = (d, err) => {
+  if (d.body.passwordNueva === d.body.passwordActual) err('passwordNueva', 'debe ser distinta a la actual');
+};
 
 // Hash cualquiera: solo sirve para que el login tarde lo mismo cuando el usuario
 // no existe, y así no revelar qué usernames están registrados.
@@ -24,18 +39,9 @@ const sesion = (u) => ({
 });
 
 // KAN-23 (HU10): registro de un nuevo usuario cliente
-router.post('/register', async (req, res) => {
-  const b = req.body ?? {};
-  const username = texto(b.username);
-  const password = typeof b.password === 'string' ? b.password : '';
-
-  const errores = [];
-  if (!username) errores.push('username: no puede estar vacío');
-  else if (username.length > 80) errores.push('username: máximo 80 caracteres');
-  if (password.length < 6) errores.push('password: debe tener mínimo 6 caracteres');
-  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
-
-  const perfil = validarPerfil(b, { completo: true });
+router.post('/register', validar({ body: ESQUEMA_REGISTRO }), async (req, res) => {
+  const { username, password, ...datos } = req.datos.body;
+  const perfil = aColumnas(datos);
   await verificarUnicos({ username, email: perfil.email, cedula: perfil.cedula ?? null });
 
   const hash = await bcrypt.hash(password, 12);
@@ -57,7 +63,7 @@ router.post('/register', async (req, res) => {
 });
 
 // KAN-24 (HU11): inicio de sesión. Devuelve el token JWT y el rol.
-router.post('/login', async (req, res) => {
+router.post('/login', validar({ body: ESQUEMA_LOGIN }), async (req, res) => {
   const ip = req.ip;
   const espera = segundosBloqueado(ip);
   if (espera > 0) {
@@ -65,12 +71,9 @@ router.post('/login', async (req, res) => {
     throw new HttpError(429, `Demasiados intentos fallidos. Intenta en ${espera} segundos.`, 'LOGIN_BLOQUEADO');
   }
 
-  const username = texto(req.body?.username);
-  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const { username, password } = req.datos.body;
 
-  const { rows } = username
-    ? await pool.query('SELECT * FROM usuario WHERE username = $1', [username])
-    : { rows: [] };
+  const { rows } = await pool.query('SELECT * FROM usuario WHERE username = $1', [username]);
   const u = rows[0];
 
   const claveCorrecta = await bcrypt.compare(password, u?.password_hash ?? HASH_FALSO);
@@ -87,16 +90,8 @@ router.post('/login', async (req, res) => {
 // Exige la contraseña actual. Si no coincide responde 400 y no modifica nada.
 // (400 y no 401: el frontend cierra la sesión ante cualquier 401.)
 // Los intentos fallidos se limitan por usuario con el mismo mecanismo del login (5 fallos -> bloqueo).
-router.patch('/password', requireAuth, async (req, res) => {
-  const actual = typeof req.body?.passwordActual === 'string' ? req.body.passwordActual : '';
-  const nueva = typeof req.body?.passwordNueva === 'string' ? req.body.passwordNueva : '';
-
-  const errores = [];
-  if (!actual) errores.push('passwordActual: es obligatoria');
-  if (nueva.length < 6) errores.push('passwordNueva: debe tener mínimo 6 caracteres');
-  else if (Buffer.byteLength(nueva, 'utf8') > 72) errores.push('passwordNueva: máximo 72 bytes (límite de bcrypt)');
-  if (errores.length) throw new HttpError(400, errores.join(', '), 'DATOS_INVALIDOS');
-  if (nueva === actual) throw new HttpError(400, 'passwordNueva: debe ser distinta a la actual', 'PASSWORD_IGUAL_A_ACTUAL');
+router.patch('/password', requireAuth, validar({ body: ESQUEMA_CAMBIO_PASSWORD, cruzada: nuevaDistintaDeLaActual }), async (req, res) => {
+  const { passwordActual: actual, passwordNueva: nueva } = req.datos.body;
 
   const clave = `pwd:${req.user.usuarioId}`;
   const espera = segundosBloqueado(clave);

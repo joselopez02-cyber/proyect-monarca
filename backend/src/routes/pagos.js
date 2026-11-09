@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
-import { parseId } from '../utils/validators.js';
+import { validar, idPositivo, enumerado, personalizada } from '../middleware/validar.js';
 import { conTransaccion } from '../utils/sillas.js';
 import { TIPOS_PAGO, esTarjeta, procesarPago } from '../utils/pagoService.js';
 
@@ -10,28 +10,31 @@ const router = Router();
 
 const esAdmin = (req) => req.user.rol === 'ADMIN';
 
+// Esquema de entrada (KAN-57). El número de tarjeta solo se exige en pagos con tarjeta y nunca se guarda completo.
+const PAGO = {
+  body: {
+    resCode: idPositivo({ requerido: true }),
+    tipoPago: enumerado(TIPOS_PAGO, { requerido: true }),
+    numeroTarjeta: personalizada((v) => (v === null ? { valor: '' }
+      : typeof v === 'string' || typeof v === 'number' ? { valor: String(v) } : { error: 'debe ser texto o número' })),
+  },
+  cruzada: (d, err) => {
+    const num = String(d.body.numeroTarjeta ?? '').replace(/[\s-]/g, '');
+    delete d.body.numeroTarjeta;
+    if (!esTarjeta(d.body.tipoPago)) return;
+    if (!/^\d{13,19}$/.test(num)) return err('numeroTarjeta', 'debe tener entre 13 y 19 dígitos');
+    d.body.ultimos4 = num.slice(-4); // el número completo NUNCA se guarda
+  },
+};
+
 // KAN-30 (HU17): pagar una reserva PENDIENTE.
 // Cuerpo: { "resCode": 7, "tipoPago": "TARJETA_CREDITO", "numeroTarjeta": "4111111111111234" }
 //   tipoPago: TARJETA_CREDITO | TARJETA_DEBITO | NEQUI | PSE  (numeroTarjeta solo para tarjetas)
 // El monto lo toma el servidor de la reserva (nunca del cliente). En UNA transacción:
 // simula la pasarela, registra la transacción (APROBADO/RECHAZADO) y, si se aprobó, confirma la reserva.
 // Si se rechaza, la reserva sigue PENDIENTE y se puede reintentar o cancelar.
-router.post('/procesar', requireAuth, async (req, res) => {
-  const b = req.body ?? {};
-  let resCode;
-  try { resCode = parseId(b.resCode); } catch { throw new HttpError(400, 'resCode: debe ser un número positivo.', 'ID_INVALIDO'); }
-
-  const tipoPago = typeof b.tipoPago === 'string' ? b.tipoPago.trim().toUpperCase() : '';
-  if (!TIPOS_PAGO.includes(tipoPago)) {
-    throw new HttpError(400, `tipoPago: debe ser uno de ${TIPOS_PAGO.join(', ')}.`, 'TIPO_PAGO_INVALIDO');
-  }
-
-  let ultimos4 = null;
-  if (esTarjeta(tipoPago)) {
-    const num = String(b.numeroTarjeta ?? '').replace(/[\s-]/g, '');
-    if (!/^\d{13,19}$/.test(num)) throw new HttpError(400, 'numeroTarjeta: debe tener entre 13 y 19 dígitos.', 'TARJETA_INVALIDA');
-    ultimos4 = num.slice(-4); // el número completo NUNCA se guarda
-  }
+router.post('/procesar', requireAuth, validar(PAGO), async (req, res) => {
+  const { resCode, tipoPago, ultimos4 = null } = req.datos.body;
 
   const resultado = await conTransaccion(async (client) => {
     const { rows } = await client.query(

@@ -1,5 +1,3 @@
-import { HttpError } from '../middleware/errors.js';
-
 // Descanso mínimo entre el final de una función y el inicio de la siguiente en la misma sala
 // (limpieza). Cámbialo aquí si quieren otro margen. 0 = solo se prohíbe que se solapen.
 export const MARGEN_MIN = 15;
@@ -10,26 +8,6 @@ export const MAX_HORARIOS = 8;   // máximo de horarios por día
 export const ZONA = process.env.ZONA_HORARIA || 'America/Bogota';
 
 const UN_DIA_MS = 24 * 60 * 60 * 1000;
-
-// Fecha en formato AAAA-MM-DD y que exista de verdad (rechaza 2026-02-31)
-export function validarFecha(v, campo = 'fecha') {
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    throw new HttpError(400, `${campo}: usa el formato AAAA-MM-DD.`, 'FECHA_FORMATO_INVALIDO');
-  }
-  const d = new Date(`${v}T00:00:00Z`);
-  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== v) {
-    throw new HttpError(400, `${campo}: no es una fecha válida.`, 'FECHA_INVALIDA');
-  }
-  return v;
-}
-
-// Hora en formato HH:mm (24 horas)
-export function validarHora(v, campo = 'hora') {
-  if (typeof v !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) {
-    throw new HttpError(400, `${campo}: usa el formato HH:mm (24 horas), por ejemplo 19:30.`, 'HORA_FORMATO_INVALIDO');
-  }
-  return v;
-}
 
 // Suma n días a una fecha AAAA-MM-DD (n puede ser negativo)
 export function moverDia(fecha, n) {

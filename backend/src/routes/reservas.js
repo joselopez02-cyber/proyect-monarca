@@ -2,9 +2,9 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
-import { parseId, texto } from '../utils/validators.js';
+import { validar, texto, idPositivo, PARAM_ID } from '../middleware/validar.js';
 import { ZONA } from '../utils/horarios.js';
-import { normalizarCodigos, conTransaccion, asegurarSillas, leerSillasBloqueando } from '../utils/sillas.js';
+import { reglaSillas, conTransaccion, asegurarSillas, leerSillasBloqueando } from '../utils/sillas.js';
 import { registrarReembolso } from '../utils/reembolsos.js';
 
 const router = Router();
@@ -37,8 +37,13 @@ const aReserva = (r) => ({
   creadoEn: r.creado_en,
 });
 
-const idCampo = (valor, campo) => {
-  try { return parseId(valor); } catch { throw new HttpError(400, `${campo}: debe ser un número positivo.`, 'ID_INVALIDO'); }
+// Esquema del cuerpo de POST /api/reservas (KAN-57)
+const NUEVA_RESERVA = {
+  funcionId: idPositivo({ requerido: true }),
+  sillas: reglaSillas(),
+  custId: idPositivo(),
+  nombre: texto({ max: 255 }),
+  contNum: texto({ max: 100 }),
 };
 
 // Mis reservas (un ADMIN ve todas)
@@ -49,8 +54,8 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(rows.map(aReserva));
 });
 
-router.get('/:id', requireAuth, async (req, res) => {
-  const id = parseId(req.params.id);
+router.get('/:id', requireAuth, validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rows } = await pool.query(`${SELECT_RESERVA} WHERE r.res_code = $1`, [id]);
   if (!rows[0]) throw new HttpError(404, `Reserva no encontrada con id: ${id}`, 'RESERVA_NO_ENCONTRADA');
   if (!esAdmin(req) && Number(rows[0].duenio_id) !== req.user.usuarioId) {
@@ -63,15 +68,8 @@ router.get('/:id', requireAuth, async (req, res) => {
 // Cuerpo: { "funcionId": 11, "sillas": ["A1","A2"], "custId": 5 (opcional), "nombre": "...", "contNum": "..." }
 // Las sillas deben seguir bloqueadas A TU NOMBRE (sin vencer). Todo ocurre en una sola transacción:
 // se crea la reserva (PENDIENTE de pago), las sillas pasan a OCUPADA y se descuentan de la función.
-router.post('/', requireAuth, async (req, res) => {
-  const b = req.body ?? {};
-  const funcionId = idCampo(b.funcionId, 'funcionId');
-  const codigos = normalizarCodigos(b.sillas, 'sillas');
-  const custIdPedido = b.custId === undefined || b.custId === null ? null : idCampo(b.custId, 'custId');
-  const nombreIn = texto(b.nombre);
-  const contNumIn = texto(b.contNum);
-  if (nombreIn && nombreIn.length > 255) throw new HttpError(400, 'nombre: máximo 255 caracteres.', 'CAMPO_DEMASIADO_LARGO');
-  if (contNumIn && contNumIn.length > 100) throw new HttpError(400, 'contNum: máximo 100 caracteres.', 'CAMPO_DEMASIADO_LARGO');
+router.post('/', requireAuth, validar({ body: NUEVA_RESERVA }), async (req, res) => {
+  const { funcionId, sillas: codigos, custId: custIdPedido, nombre: nombreIn, contNum: contNumIn } = req.datos.body;
 
   const resCode = await conTransaccion(async (client) => {
     // 1) La función existe y todavía no empieza (hora de Colombia)
@@ -188,16 +186,16 @@ async function liberarReserva(req, id, modo) {
 }
 
 // Cancelar conservando el registro (lo usa el botón Cancelar del frontend)
-router.patch('/:id/cancelar', requireAuth, async (req, res) => {
-  const id = parseId(req.params.id);
+router.patch('/:id/cancelar', requireAuth, validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const reembolso = await liberarReserva(req, id, 'cancelar');
   const { rows } = await pool.query(`${SELECT_RESERVA} WHERE r.res_code = $1`, [id]);
   res.json({ ...aReserva(rows[0]), reembolso });
 });
 
 // KAN-29: DELETE /api/reservas/{id} -> elimina la reserva y las sillas vuelven a estar disponibles
-router.delete('/:id', requireAuth, async (req, res) => {
-  const id = parseId(req.params.id);
+router.delete('/:id', requireAuth, validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   await liberarReserva(req, id, 'eliminar');
   res.status(204).end();
 });
