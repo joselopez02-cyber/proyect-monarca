@@ -2,8 +2,8 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { parseId } from '../utils/validators.js';
-import { aUsuario, CAMPOS_PERFIL, validarPerfil, verificarUnicos } from '../utils/usuarios.js';
+import { validar, enumerado, PARAM_ID } from '../middleware/validar.js';
+import { aUsuario, COLUMNAS_PERFIL, esquemaPerfil, aColumnas, verificarUnicos } from '../utils/usuarios.js';
 
 const router = Router();
 const ROLES = ['USER', 'GESTOR', 'ADMIN'];
@@ -17,18 +17,17 @@ router.get('/', requireRole('ADMIN'), async (_req, res) => {
   res.json(rows.map(aUsuario));
 });
 
-router.get('/:id', requireRole('ADMIN'), async (req, res) => {
-  const id = parseId(req.params.id);
+router.get('/:id', requireRole('ADMIN'), validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rows } = await pool.query('SELECT * FROM usuario WHERE usuario_id = $1', [id]);
   if (!rows[0]) throw noEncontrado(id);
   res.json(aUsuario(rows[0]));
 });
 
 // KAN-25 (HU12): cambiar el rol. Solo ADMIN: así nadie puede auto-escalarse.
-router.patch('/:id/rol', requireRole('ADMIN'), async (req, res) => {
-  const id = parseId(req.params.id);
-  const rol = typeof req.body?.rol === 'string' ? req.body.rol.trim().toUpperCase() : '';
-  if (!ROLES.includes(rol)) throw new HttpError(400, `rol: debe ser ${ROLES.join(', ')}`, 'ROL_INVALIDO');
+router.patch('/:id/rol', requireRole('ADMIN'), validar({ ...PARAM_ID, body: { rol: enumerado(ROLES, { requerido: true }) } }), async (req, res) => {
+  const { id } = req.datos.params;
+  const { rol } = req.datos.body;
 
   const { rowCount } = await pool.query('UPDATE usuario SET rol = $1 WHERE usuario_id = $2', [rol, id]);
   if (!rowCount) throw noEncontrado(id);
@@ -36,18 +35,21 @@ router.patch('/:id/rol', requireRole('ADMIN'), async (req, res) => {
 });
 
 // KAN-25 (HU12): editar el perfil. ADMIN edita cualquiera; los demás, solo el suyo.
-router.patch('/:id/perfil', async (req, res) => {
-  const id = parseId(req.params.id);
+router.patch('/:id/perfil', validar({
+  ...PARAM_ID,
+  body: esquemaPerfil(),
+  cruzada: (d, err) => {
+    if (!Object.keys(d.body).length) err('cuerpo', `envía al menos un campo: ${Object.keys(COLUMNAS_PERFIL).join(', ')}`);
+  },
+}), async (req, res) => {
+  const { id } = req.datos.params;
   if (req.user.rol !== 'ADMIN' && req.user.usuarioId !== id) {
     throw new HttpError(403, 'No puedes modificar el perfil de otro usuario.', 'PERFIL_AJENO');
   }
 
   // Solo se aceptan los campos de perfil; "rol" o "activo" en el cuerpo se ignoran
-  const valores = validarPerfil(req.body ?? {});
+  const valores = aColumnas(req.datos.body);
   const columnas = Object.keys(valores);
-  if (!columnas.length) {
-    throw new HttpError(400, `Envía al menos un campo: ${Object.keys(CAMPOS_PERFIL).join(', ')}`, 'SIN_CAMPOS_PARA_ACTUALIZAR');
-  }
   await verificarUnicos({ email: valores.email, cedula: valores.cedula }, id);
 
   const sets = columnas.map((c, i) => `${c} = $${i + 1}`).join(', ');
@@ -60,8 +62,8 @@ router.patch('/:id/perfil', async (req, res) => {
 });
 
 // Desactivar (no borra el registro)
-router.delete('/:id', requireRole('ADMIN'), async (req, res) => {
-  const id = parseId(req.params.id);
+router.delete('/:id', requireRole('ADMIN'), validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rowCount } = await pool.query('UPDATE usuario SET activo = FALSE WHERE usuario_id = $1', [id]);
   if (!rowCount) throw noEncontrado(id);
   res.json({ mensaje: 'Usuario desactivado' });

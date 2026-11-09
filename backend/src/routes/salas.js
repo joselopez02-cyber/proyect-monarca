@@ -2,6 +2,7 @@ import express from 'express';
 import * as dbModule from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
+import { validar, texto, entero, enumerado, idPositivo, PARAM_ID } from '../middleware/validar.js';
 
 // Acepta que db.js exporte el pool directo, { pool } o { query }.
 const db = dbModule.pool || dbModule.default?.pool || dbModule.default || dbModule;
@@ -32,6 +33,21 @@ const SELECT_SALA = `
   LEFT JOIN sucursal su ON su.bran_id = sa.sucursal_id`;
 
 // Matriz de asientos generada a partir de filas x columnas (A1, A2 ... B1 ...)
+// Esquemas de entrada (KAN-57)
+const TIPO_SALA = enumerado(TIPOS, {
+  requerido: true,
+  equivalencias: ALIAS_TIPO,
+  motivo: 'debe ser PRO, TRES_D (3D) o DOS_D (2D)',
+});
+const SALA = {
+  nombre: texto({ requerido: true, max: 100 }),
+  tipo: TIPO_SALA,
+  filas: entero({ requerido: true, min: 1, max: MAX_FILAS }),
+  columnas: entero({ requerido: true, min: 1, max: MAX_COLUMNAS }),
+  branId: idPositivo({ requerido: true, alias: ['sucursal.branId'] }),
+};
+const datosSala = (b) => ({ ...b, capacidad: b.filas * b.columnas });
+
 function generarAsientos(filas, columnas, tipo) {
   const matriz = [];
   for (let f = 0; f < filas; f++) {
@@ -49,46 +65,6 @@ function conAsientos(sala) {
   const filas = sala.filas || 0;
   const columnas = sala.columnas || 0;
   return { ...sala, asientos: generarAsientos(filas, columnas, sala.tipo) };
-}
-
-function idValido(valor, nombre) {
-  const id = Number(valor);
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, nombre + ' invalido.', 'ID_INVALIDO');
-  return id;
-}
-
-function normalizarTipo(t) {
-  if (typeof t !== 'string') return null;
-  const v = t.trim().toUpperCase();
-  const tipo = ALIAS_TIPO[v] || v;
-  return TIPOS.includes(tipo) ? tipo : null;
-}
-
-// Valida y normaliza el cuerpo (POST y PUT usan las mismas reglas)
-function validar(b) {
-  const nombre = typeof b?.nombre === 'string' ? b.nombre.trim() : '';
-  if (!nombre) return { error: 'El nombre de la sala es obligatorio.' };
-  if (nombre.length > 100) return { error: 'El nombre de la sala no puede superar 100 caracteres.' };
-
-  const tipo = normalizarTipo(b.tipo);
-  if (!tipo) return { error: 'Tipo de sala invalido. Valores validos: PRO, TRES_D (3D), DOS_D (2D).' };
-
-  const filas = Number(b.filas);
-  const columnas = Number(b.columnas);
-  if (!Number.isInteger(filas) || filas < 1 || filas > MAX_FILAS) {
-    return { error: 'Las filas deben ser un entero entre 1 y ' + MAX_FILAS + '.' };
-  }
-  if (!Number.isInteger(columnas) || columnas < 1 || columnas > MAX_COLUMNAS) {
-    return { error: 'Las columnas deben ser un entero entre 1 y ' + MAX_COLUMNAS + '.' };
-  }
-  const rawSuc = b.sucursal?.branId ?? b.branId;
-  if (rawSuc === undefined || rawSuc === null || rawSuc === '') {
-    return { error: 'Debes indicar la sucursal de la sala.' };
-  }
-  const branId = Number(rawSuc);
-  if (!Number.isInteger(branId) || branId <= 0) return { error: 'Id de sucursal invalido.' };
-
-  return { nombre, tipo, filas, columnas, capacidad: filas * columnas, branId };
 }
 
 async function existeSucursal(branId) {
@@ -110,21 +86,18 @@ router.get('/', async (_req, res, next) => {
 });
 
 // Salas por tipo: /api/salas/tipo/PRO | 3D | 2D
-router.get('/tipo/:tipo', async (req, res, next) => {
+router.get('/tipo/:tipo', validar({ params: { tipo: TIPO_SALA } }), async (req, res, next) => {
   try {
-    const tipo = normalizarTipo(req.params.tipo);
-    if (!tipo) {
-      throw new HttpError(400, 'Tipo de sala invalido: ' + req.params.tipo + '. Valores validos: PRO, 3D, 2D', 'TIPO_SALA_INVALIDO');
-    }
+    const { tipo } = req.datos.params;
     const { rows } = await db.query(`${SELECT_SALA} WHERE sa.tipo::text = $1 ORDER BY sa.sala_id`, [tipo]);
     res.json(rows);
   } catch (e) { next(e); }
 });
 
 // Solo la matriz de asientos de una sala
-router.get('/:id/asientos', async (req, res, next) => {
+router.get('/:id/asientos', validar(PARAM_ID), async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala');
+    const { id } = req.datos.params;
     const sala = await obtenerSala(id);
     if (!sala) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.json({
@@ -135,9 +108,9 @@ router.get('/:id/asientos', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', validar(PARAM_ID), async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala');
+    const { id } = req.datos.params;
     const sala = await obtenerSala(id);
     if (!sala) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.json(conAsientos(sala));
@@ -145,10 +118,9 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // KAN-17: registrar una sala con filas, columnas y tipo; genera la matriz de asientos
-router.post('/', ...soloAdmin, async (req, res, next) => {
+router.post('/', ...soloAdmin, validar({ body: SALA }), async (req, res, next) => {
   try {
-    const v = validar(req.body);
-    if (v.error) throw new HttpError(400, v.error, 'DATOS_INVALIDOS');
+    const v = datosSala(req.datos.body);
     if (!(await existeSucursal(v.branId))) {
       throw new HttpError(404, 'Sucursal no encontrada con id: ' + v.branId, 'SUCURSAL_NO_ENCONTRADA');
     }
@@ -162,11 +134,10 @@ router.post('/', ...soloAdmin, async (req, res, next) => {
 });
 
 // Editar una sala (recalcula capacidad y matriz)
-router.put('/:id', ...soloAdmin, async (req, res, next) => {
+router.put('/:id', ...soloAdmin, validar({ ...PARAM_ID, body: SALA }), async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala');
-    const v = validar(req.body);
-    if (v.error) throw new HttpError(400, v.error, 'DATOS_INVALIDOS');
+    const { id } = req.datos.params;
+    const v = datosSala(req.datos.body);
     if (!(await existeSucursal(v.branId))) {
       throw new HttpError(404, 'Sucursal no encontrada con id: ' + v.branId, 'SUCURSAL_NO_ENCONTRADA');
     }
@@ -181,9 +152,9 @@ router.put('/:id', ...soloAdmin, async (req, res, next) => {
 });
 
 // Eliminar una sala
-router.delete('/:id', ...soloAdmin, async (req, res, next) => {
+router.delete('/:id', ...soloAdmin, validar(PARAM_ID), async (req, res, next) => {
   try {
-    const id = idValido(req.params.id, 'Id de sala');
+    const { id } = req.datos.params;
     const r = await db.query('DELETE FROM sala WHERE sala_id = $1', [id]);
     if (!r.rowCount) throw new HttpError(404, 'Sala no encontrada con id: ' + id, 'SALA_NO_ENCONTRADA');
     res.status(204).end();

@@ -88,15 +88,18 @@ export async function api(path, method = 'GET', body = null) {
       const text = await res.text();
       let errorMessage = `Error HTTP: ${res.status}`;
       let codigo;
+      let errores;
       try {
         const json = JSON.parse(text);
         errorMessage = json.error || json.message || errorMessage;
         codigo = json.code;
+        errores = json.errores;
       } catch {
         errorMessage = text || errorMessage;
       }
-      // Contrato de errores (KAN-54): el Error lleva el status y el código estable (e.status, e.code)
-      throw Object.assign(new Error(errorMessage), { status: res.status, code: codigo });
+      // Contrato de errores (KAN-54): el Error lleva el status y el código estable (e.status, e.code).
+      // En errores de validación (KAN-57) también la lista de campos inválidos: e.errores = [{ campo, motivo, en }]
+      throw Object.assign(new Error(errorMessage), { status: res.status, code: codigo, errores });
     }
 
     setStatus(true);

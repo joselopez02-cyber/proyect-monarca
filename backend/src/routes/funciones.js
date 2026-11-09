@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
+import { validar, idPositivo, fecha, hora, numero, booleano, lista, PARAM_ID } from '../middleware/validar.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { puedeAdministrarSucursal } from '../utils/gestores.js';
-import { parseId } from '../utils/validators.js';
 import { TTL_SEG } from '../utils/sillas.js';
 import {
   MARGEN_MIN, MAX_DIAS, MAX_HORARIOS,
-  validarFecha, validarHora, moverDia, diasEnRango, fechasEntre, sumarMinutos,
+  moverDia, diasEnRango, fechasEntre, sumarMinutos,
 } from '../utils/horarios.js';
 
 const router = Router();
@@ -49,9 +49,48 @@ const aFuncion = (r) => ({
 
 const ORDEN = 'ORDER BY f.fecha, f.hora_inicio, f.funcion_id';
 
-const idCampo = (valor, campo) => {
-  try { return parseId(valor); } catch { throw new HttpError(400, `${campo}: debe ser un número positivo.`, 'ID_INVALIDO'); }
+// Esquemas de entrada (KAN-57). Los alias (peliculaId, horaInicio, inicio, fin) vienen del backend anterior.
+const PRECIO = numero({ requerido: true, mayorQue: 0, max: 1_000_000, motivo: 'debe ser un número mayor que 0 (en pesos)' });
+const PELICULA_Y_SALA = {
+  movieId: idPositivo({ requerido: true, alias: ['peliculaId'] }),
+  salaId: idPositivo({ requerido: true }),
 };
+// UNA función (POST y PUT): { movieId, salaId, fecha, hora (o horaInicio), precioBoleto }
+const FUNCION_UNICA = {
+  ...PELICULA_Y_SALA,
+  fecha: fecha({ requerido: true }),
+  hora: hora({ requerido: true, alias: ['horaInicio'] }),
+  precioBoleto: PRECIO,
+};
+// Varias a la vez: una fecha o un rango (fechaInicio y fechaFin) y una hora o una lista de horarios
+const PROGRAMAR = {
+  body: {
+    ...PELICULA_Y_SALA,
+    precioBoleto: PRECIO,
+    fecha: fecha(),
+    fechaInicio: fecha(),
+    fechaFin: fecha(),
+    hora: hora({ alias: ['horaInicio'] }),
+    horarios: lista(hora(), { max: MAX_HORARIOS }),
+  },
+  cruzada: (d, err) => {
+    const b = d.body;
+    if (b.fecha) {
+      b.fechas = [b.fecha];
+    } else if (b.fechaInicio) {
+      const fin = b.fechaFin ?? b.fechaInicio;
+      if (fin < b.fechaInicio) return err('fechaFin', 'no puede ser anterior a fechaInicio');
+      if (diasEnRango(b.fechaInicio, fin) > MAX_DIAS) return err('fechaFin', `el rango no puede superar ${MAX_DIAS} días`);
+      b.fechas = fechasEntre(b.fechaInicio, fin);
+    } else {
+      return err('fecha', 'indica la fecha (fecha) o un rango (fechaInicio y fechaFin)');
+    }
+    const crudas = b.horarios?.length ? b.horarios : (b.hora ? [b.hora] : []);
+    if (!crudas.length) return err('hora', 'indica la hora (hora) o una lista de horarios (horarios)');
+    b.horas = [...new Set(crudas)].sort();
+  },
+};
+const TODAS = { todas: booleano() };
 
 // ¿Hay otra función en la misma sala cuyo bloque (duración + margen) choque con el nuevo?
 // Bloque = desde que empieza hasta que termina la película más el margen de limpieza.
@@ -69,12 +108,12 @@ const SQL_CRUCE = `
                          + make_interval(mins => COALESCE(p.duracion_min, 0) + $6::int)`;
 
 // Listado. Filtros opcionales: ?movieId= &salaId= &fecha=AAAA-MM-DD
-router.get('/', async (req, res) => {
+router.get('/', validar({ query: { movieId: idPositivo(), salaId: idPositivo(), fecha: fecha() } }), async (req, res) => {
   const cond = [];
   const params = [];
-  if (req.query.movieId !== undefined) { params.push(idCampo(req.query.movieId, 'movieId')); cond.push(`f.movie_id = $${params.length}`); }
-  if (req.query.salaId !== undefined) { params.push(idCampo(req.query.salaId, 'salaId')); cond.push(`f.sala_id = $${params.length}`); }
-  if (req.query.fecha !== undefined) { params.push(validarFecha(req.query.fecha)); cond.push(`f.fecha = $${params.length}`); }
+  if (req.datos.query.movieId != null) { params.push(req.datos.query.movieId); cond.push(`f.movie_id = $${params.length}`); }
+  if (req.datos.query.salaId != null) { params.push(req.datos.query.salaId); cond.push(`f.sala_id = $${params.length}`); }
+  if (req.datos.query.fecha != null) { params.push(req.datos.query.fecha); cond.push(`f.fecha = $${params.length}`); }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
   const { rows } = await pool.query(`${SELECT_FUNCION} ${where} ${ORDEN}`, params);
   res.json(rows.map(aFuncion));
@@ -97,7 +136,7 @@ async function consultar({ condiciones = [], params = [], todas = false }) {
   return rows.map(aFuncion);
 }
 
-const pideTodas = (req) => req.query.todas === 'true';
+const pideTodas = (req) => req.datos.query.todas === true;
 
 // KAN-21 (HU08): cartelera de funciones vigentes. Descarta las que ya empezaron o terminaron,
 // comparando fecha Y hora con el momento actual (no solo el día).
@@ -107,15 +146,15 @@ router.get('/vigentes', async (_req, res) => {
 
 // KAN-22 (HU09): filtros de la cartelera. Por defecto solo muestran funciones vigentes;
 // con ?todas=true incluyen también las que ya pasaron.
-router.get('/pelicula/:movieId', async (req, res) => {
-  const movieId = parseId(req.params.movieId);
+router.get('/pelicula/:movieId', validar({ params: { movieId: idPositivo({ requerido: true }) }, query: TODAS }), async (req, res) => {
+  const { movieId } = req.datos.params;
   const { rowCount } = await pool.query('SELECT 1 FROM pelicula WHERE movie_id = $1', [movieId]);
   if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${movieId}`, 'PELICULA_NO_ENCONTRADA');
   res.json(await consultar({ condiciones: ['f.movie_id = $1'], params: [movieId], todas: pideTodas(req) }));
 });
 
-router.get('/sala/:salaId', async (req, res) => {
-  const salaId = parseId(req.params.salaId);
+router.get('/sala/:salaId', validar({ params: { salaId: idPositivo({ requerido: true }) }, query: TODAS }), async (req, res) => {
+  const { salaId } = req.datos.params;
   const { rowCount } = await pool.query('SELECT 1 FROM sala WHERE sala_id = $1', [salaId]);
   if (!rowCount) throw new HttpError(404, `Sala no encontrada con id: ${salaId}`, 'SALA_NO_ENCONTRADA');
   res.json(await consultar({ condiciones: ['f.sala_id = $1'], params: [salaId], todas: pideTodas(req) }));
@@ -123,40 +162,20 @@ router.get('/sala/:salaId', async (req, res) => {
 
 // /api/funciones/rango?desde=2026-11-20&hasta=2026-11-25 (ambas fechas incluidas).
 // También acepta inicio y fin, los nombres que usaba el backend anterior.
-router.get('/rango', async (req, res) => {
-  const desde = validarFecha(req.query.desde ?? req.query.inicio, 'desde');
-  const hasta = validarFecha(req.query.hasta ?? req.query.fin, 'hasta');
-  if (hasta < desde) throw new HttpError(400, 'hasta no puede ser anterior a desde.', 'RANGO_FECHAS_INVALIDO');
+router.get('/rango', validar({
+  query: { desde: fecha({ requerido: true, alias: ['inicio'] }), hasta: fecha({ requerido: true, alias: ['fin'] }), ...TODAS },
+  cruzada: (d, err) => { if (d.query.hasta < d.query.desde) err('hasta', 'no puede ser anterior a desde', 'query'); },
+}), async (req, res) => {
+  const { desde, hasta } = req.datos.query;
   res.json(await consultar({ condiciones: ['f.fecha BETWEEN $1 AND $2'], params: [desde, hasta], todas: pideTodas(req) }));
 });
 
-router.get('/:id', async (req, res) => {
-  const id = parseId(req.params.id);
+router.get('/:id', validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rows } = await pool.query(`${SELECT_FUNCION} WHERE f.funcion_id = $1`, [id]);
   if (!rows[0]) throw new HttpError(404, `Función no encontrada con id: ${id}`, 'FUNCION_NO_ENCONTRADA');
   res.json(aFuncion(rows[0]));
 });
-
-// precioBoleto en pesos: número (o texto numérico) mayor que 0
-function leerPrecio(b) {
-  const precio = typeof b.precioBoleto === 'number' ? b.precioBoleto
-    : typeof b.precioBoleto === 'string' && b.precioBoleto.trim() !== '' ? Number(b.precioBoleto) : NaN;
-  if (!Number.isFinite(precio) || precio <= 0 || precio > 1_000_000) {
-    throw new HttpError(400, 'precioBoleto: debe ser un número mayor que 0 (en pesos).', 'PRECIO_INVALIDO');
-  }
-  return precio;
-}
-
-// Cuerpo de UNA función (POST y PUT): { movieId, salaId, fecha, hora (o horaInicio), precioBoleto }
-function leerFuncionUnica(b) {
-  return {
-    movieId: idCampo(b.movieId ?? b.peliculaId, 'movieId'),
-    salaId: idCampo(b.salaId, 'salaId'),
-    fecha: validarFecha(b.fecha, 'fecha'),
-    hora: validarHora(b.hora ?? b.horaInicio, 'hora'),
-    precio: leerPrecio(b),
-  };
-}
 
 // Crea las funciones (todas o ninguna): valida película y sala, revisa permisos de sucursal
 // y que no se crucen en la sala. Devuelve las funciones creadas.
@@ -222,32 +241,8 @@ async function crearFunciones(user, { movieId, salaId, fechas, horas, precio }) 
 // Una función:   { "movieId": 1, "salaId": 2, "fecha": "2026-11-20", "hora": "19:00", "precioBoleto": 18000 }
 // Varias a la vez: { "movieId", "salaId", "fechaInicio", "fechaFin", "horarios": ["15:00","19:00"], "precioBoleto" }
 // Es todo o nada: si una sola se cruza, no se crea ninguna.
-router.post('/programar', ...admins, async (req, res) => {
-  const b = req.body ?? {};
-  const movieId = idCampo(b.movieId ?? b.peliculaId, 'movieId');
-  const salaId = idCampo(b.salaId, 'salaId');
-
-  const precio = leerPrecio(b);
-
-  let fechas;
-  if (b.fecha !== undefined) {
-    fechas = [validarFecha(b.fecha, 'fecha')];
-  } else if (b.fechaInicio !== undefined) {
-    const inicio = validarFecha(b.fechaInicio, 'fechaInicio');
-    const fin = validarFecha(b.fechaFin ?? b.fechaInicio, 'fechaFin');
-    if (fin < inicio) throw new HttpError(400, 'fechaFin no puede ser anterior a fechaInicio.', 'RANGO_FECHAS_INVALIDO');
-    if (diasEnRango(inicio, fin) > MAX_DIAS) throw new HttpError(400, `El rango no puede superar ${MAX_DIAS} días.`, 'RANGO_EXCEDE_MAXIMO');
-    fechas = fechasEntre(inicio, fin);
-  } else {
-    throw new HttpError(400, 'Indica la fecha (fecha) o un rango (fechaInicio y fechaFin).', 'FECHA_REQUERIDA');
-  }
-
-  const crudas = b.horarios ?? (b.hora !== undefined ? [b.hora] : b.horaInicio !== undefined ? [b.horaInicio] : undefined);
-  if (!Array.isArray(crudas) || crudas.length === 0) {
-    throw new HttpError(400, 'Indica la hora (hora) o una lista de horarios (horarios).', 'HORA_REQUERIDA');
-  }
-  if (crudas.length > MAX_HORARIOS) throw new HttpError(400, `Máximo ${MAX_HORARIOS} horarios por día.`, 'HORARIOS_EXCEDE_MAXIMO');
-  const horas = [...new Set(crudas.map((h, i) => validarHora(h, `horarios[${i}]`)))].sort();
+router.post('/programar', ...admins, validar(PROGRAMAR), async (req, res) => {
+  const { movieId, salaId, precioBoleto: precio, fechas, horas } = req.datos.body;
 
   const funciones = await crearFunciones(req.user, { movieId, salaId, fechas, horas, precio });
   res.status(201).json({ creadas: funciones.length, funciones });
@@ -255,9 +250,9 @@ router.post('/programar', ...admins, async (req, res) => {
 
 // POST /api/funciones: crea UNA función. Mismos permisos y mismas reglas que /programar.
 // Cuerpo: { "movieId": 1, "salaId": 2, "fecha": "2026-11-20", "hora": "19:00", "precioBoleto": 18000 }
-router.post('/', ...admins, async (req, res) => {
-  const n = leerFuncionUnica(req.body ?? {});
-  const [funcion] = await crearFunciones(req.user, { movieId: n.movieId, salaId: n.salaId, fechas: [n.fecha], horas: [n.hora], precio: n.precio });
+router.post('/', ...admins, validar({ body: FUNCION_UNICA }), async (req, res) => {
+  const n = req.datos.body;
+  const [funcion] = await crearFunciones(req.user, { movieId: n.movieId, salaId: n.salaId, fechas: [n.fecha], horas: [n.hora], precio: n.precioBoleto });
   res.status(201).json(funcion);
 });
 
@@ -266,9 +261,9 @@ router.post('/', ...admins, async (req, res) => {
 // - Si hay clientes con sillas bloqueadas en este momento, se pide intentar de nuevo en unos minutos.
 // - Si cambia la sala, las sillas se regeneran con la matriz de la sala nueva y los asientos pasan a su capacidad.
 // - La sala debe estar libre en el nuevo horario (sin contar la propia función).
-router.put('/:id', ...admins, async (req, res) => {
-  const id = parseId(req.params.id);
-  const n = leerFuncionUnica(req.body ?? {});
+router.put('/:id', ...admins, validar({ ...PARAM_ID, body: FUNCION_UNICA }), async (req, res) => {
+  const { id } = req.datos.params;
+  const n = req.datos.body;
 
   const client = await pool.connect();
   try {
@@ -330,7 +325,7 @@ router.put('/:id', ...admins, async (req, res) => {
 
     await client.query(
       `UPDATE funcion SET movie_id = $1, sala_id = $2, fecha = $3, hora_inicio = $4, precio_boleto = $5
-        WHERE funcion_id = $6`, [n.movieId, n.salaId, n.fecha, n.hora, n.precio, id]);
+        WHERE funcion_id = $6`, [n.movieId, n.salaId, n.fecha, n.hora, n.precioBoleto, id]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -343,8 +338,8 @@ router.put('/:id', ...admins, async (req, res) => {
   res.json(aFuncion(rows[0]));
 });
 
-router.delete('/:id', ...admins, async (req, res) => {
-  const id = parseId(req.params.id);
+router.delete('/:id', ...admins, validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rows } = await pool.query(
     `SELECT f.funcion_id, sa.sucursal_id FROM funcion f JOIN sala sa ON sa.sala_id = f.sala_id WHERE f.funcion_id = $1`, [id]);
   if (!rows[0]) throw new HttpError(404, `Función no encontrada con id: ${id}`, 'FUNCION_NO_ENCONTRADA');

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { parseId } from '../utils/validators.js';
+import { validar, idPositivo, PARAM_ID } from '../middleware/validar.js';
 
 const router = Router();
 
@@ -32,10 +32,8 @@ router.get('/', async (_req, res) => {
 });
 
 // KAN-18 (HU05): asignar un usuario con rol GESTOR a una sucursal existente
-router.post('/', async (req, res) => {
-  const { usuarioId, sucursalId } = req.body ?? {};
-  const uid = parseId(usuarioId);
-  const sid = parseId(sucursalId);
+router.post('/', validar({ body: { usuarioId: idPositivo({ requerido: true }), sucursalId: idPositivo({ requerido: true }) } }), async (req, res) => {
+  const { usuarioId: uid, sucursalId: sid } = req.datos.body;
 
   const { rows: us } = await pool.query('SELECT * FROM usuario WHERE usuario_id = $1', [uid]);
   const u = us[0];
@@ -64,8 +62,8 @@ router.post('/', async (req, res) => {
 });
 
 // Quitar la asignación
-router.delete('/:id', async (req, res) => {
-  const id = parseId(req.params.id);
+router.delete('/:id', validar(PARAM_ID), async (req, res) => {
+  const { id } = req.datos.params;
   const { rowCount } = await pool.query('DELETE FROM gestor WHERE manager_id = $1', [id]);
   if (!rowCount) throw new HttpError(404, `Gestor no encontrado con id: ${id}`, 'GESTOR_NO_ENCONTRADO');
   res.json({ mensaje: 'Asignación eliminada' });

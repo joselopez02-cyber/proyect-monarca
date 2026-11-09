@@ -2,7 +2,7 @@ import { Router } from 'express';
 import pool from '../db.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
-import { parseId } from '../utils/validators.js';
+import { validar, idPositivo } from '../middleware/validar.js';
 
 const router = Router();
 
@@ -49,8 +49,8 @@ router.get('/', requireAuth, async (req, res) => {
 // KAN-31 (HU18): historial de transacciones de un cliente (solo lectura).
 // Cada fila es un intento de pago hecho en POST /api/pagos/procesar, con su estado, monto y fecha.
 // Lo ve el dueño de ese cliente o un ADMIN. Nunca incluye el número de tarjeta, solo los últimos 4 dígitos.
-router.get('/cliente/:custId', requireAuth, async (req, res) => {
-  const custId = parseId(req.params.custId);
+router.get('/cliente/:custId', requireAuth, validar({ params: { custId: idPositivo({ requerido: true }) } }), async (req, res) => {
+  const { custId } = req.datos.params;
 
   const { rows: cs } = await pool.query('SELECT cust_id, usuario_id FROM cliente WHERE cust_id = $1', [custId]);
   if (!cs[0]) throw new HttpError(404, `Cliente no encontrado con id: ${custId}`, 'CLIENTE_NO_ENCONTRADO');

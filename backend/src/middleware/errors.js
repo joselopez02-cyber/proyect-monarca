@@ -3,6 +3,7 @@
 //   { timestamp, status, error, code, path }
 //   timestamp: momento del error (ISO 8601)        status: código HTTP
 //   error:     mensaje legible para la persona      path:   ruta pedida (sin query string)
+//   errores:   solo en errores de validación (KAN-57, HT18): [{ campo, motivo, en }] con cada campo inválido
 //   code:      identificador estable (MAYUSCULAS_CON_GUION_BAJO). El frontend debe decidir con el
 //              código, no con el texto del mensaje, que puede cambiar. Catálogo: backend/docs/codigos-de-error.md
 
@@ -30,18 +31,27 @@ export class HttpError extends Error {
   }
 }
 
-export function cuerpoError(req, status, mensaje, codigo) {
+// Datos de entrada inválidos (los lanza middleware/validar.js). Lleva la lista de campos con su motivo.
+export class ErrorValidacion extends HttpError {
+  constructor(errores) {
+    super(400, errores.map((e) => `${e.campo}: ${e.motivo}`).join(', '), 'DATOS_INVALIDOS');
+    this.errores = errores;
+  }
+}
+
+export function cuerpoError(req, status, mensaje, codigo, extra = {}) {
   return {
     timestamp: new Date().toISOString(),
     status,
     error: mensaje,
     code: codigo || CODIGO_POR_ESTADO[status] || 'ERROR',
     path: (req.originalUrl || req.url || '').split('?')[0],
+    ...extra,
   };
 }
 
-export function enviarError(req, res, status, mensaje, codigo) {
-  res.status(status).json(cuerpoError(req, status, mensaje, codigo));
+export function enviarError(req, res, status, mensaje, codigo, extra) {
+  res.status(status).json(cuerpoError(req, status, mensaje, codigo, extra));
 }
 
 export function notFound(req, res) {
@@ -57,7 +67,7 @@ export function errorHandler(err, req, res, next) {
     return enviarError(req, res, 413, 'El cuerpo de la petición es demasiado grande.', 'CUERPO_DEMASIADO_GRANDE');
   }
   if (err instanceof HttpError) {
-    return enviarError(req, res, err.status, err.message, err.code);
+    return enviarError(req, res, err.status, err.message, err.code, err.errores ? { errores: err.errores } : undefined);
   }
   // 23505 = violación de restricción UNIQUE en PostgreSQL (dos peticiones a la vez)
   if (err.code === '23505') {

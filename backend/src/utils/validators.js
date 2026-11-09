@@ -1,8 +1,3 @@
-import { HttpError } from '../middleware/errors.js';
-
-// Devuelve el texto sin espacios sobrantes, o null si viene vacío o no es texto
-export const texto = (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null);
-
 export const esEmail = (v) => {
   if (typeof v !== 'string' || v.length > 254) return false;
   const at = v.indexOf('@');
@@ -19,11 +14,3 @@ export const esEmail = (v) => {
     && labels.every((label) => label.length <= 63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(label))
     && /^[A-Za-z]{2,63}$/.test(labels.at(-1));
 };
-
-// Convierte el id de la URL en número o lanza 400
-export function parseId(valor) {
-  if (!/^\d{1,15}$/.test(String(valor)) || Number(valor) <= 0) {
-    throw new HttpError(400, 'El id debe ser un número positivo.', 'ID_INVALIDO');
-  }
-  return Number(valor);
-}
