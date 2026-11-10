@@ -2,9 +2,11 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { HttpError, enviarError } from './errors.js';
+import { ES_PRODUCCION } from '../config.js';
 
 // Orígenes externos permitidos (separados por coma). El propio dominio de la app siempre se acepta.
-const permitidos = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+// En producción, sin CORS_ORIGINS solo se acepta el propio dominio (KAN-39)
+const permitidos = (process.env.CORS_ORIGINS ?? (ES_PRODUCCION ? '' : 'http://localhost:5173'))
   .split(',').map((s) => s.trim()).filter(Boolean);
 
 export const cabecerasSeguridad = helmet({
