@@ -6,7 +6,7 @@
 import { showAlert } from '../utils/utils.js';
 
 // ── Configuración de API_BASE ────────────────────────────────
-if (typeof _AZURE_URL === 'undefined') var _AZURE_URL = 'https://monarca-e4cfe8dyfvaddhcj.brazilsouth-01.azurewebsites.net';
+if (typeof _AZURE_URL === 'undefined') var _AZURE_URL = import.meta.env.VITE_API_URL || ''; // KAN-39: sin URLs de otros despliegues en el código
 if (typeof _autoBase === 'undefined') var _autoBase = window.location.origin;
 
 (function () {
