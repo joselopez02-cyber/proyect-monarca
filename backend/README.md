@@ -1,38 +1,44 @@
 # Backend - Cinema Monarca
 
-API en Node.js + Express + PostgreSQL.
+API REST de Node.js, Express y PostgreSQL. La [referencia de API](./docs/API.md) documenta cada endpoint, sus roles, cuerpos, respuestas y errores; el [manual de usuario](./docs/MANUAL_USUARIO.md) cubre los flujos de la aplicación.
 
-## Tickets Jira cubiertos
-- KAN-9  (HT01) Modelo de datos relacional -> `sql/01_schema.sql`
-- KAN-13 (HT05) Scripts de esquema y datos semilla -> `sql/02_seed.sql`
+## Desarrollo local
 
-## Puesta en marcha
-1. `npm install`
-2. Copia `.env.example` a `.env`
-3. Levanta PostgreSQL (ver abajo) y ejecuta `npm run db:setup`
-4. `npm run dev` y abre `/api/health`
+Desde esta carpeta instala dependencias, crea `.env` a partir de `.env.example` si aún no existe y configura la cadena local `DATABASE_URL` y un `JWT_SECRET` de al menos 32 caracteres. Inicia PostgreSQL y ejecuta:
 
-## PostgreSQL en Codespaces
-    docker run -d --name monarca-db -e POSTGRES_PASSWORD=monarca \
-      -e POSTGRES_DB=cinema_monarca -p 5432:5432 postgres:16
+```powershell
+npm run db:setup
+npm run dev
+```
 
-## Comandos
-- `npm run db:setup`  crea tablas y datos semilla (se puede repetir sin duplicar)
-- `npm run db:reset`  borra todo y vuelve a crearlo
-- `npm run dev`       servidor con recarga automatica en el puerto 8080
-- `npm test`          ejecuta las pruebas unitarias y muestra cobertura con c8
-- `npm run test:integration` ejecuta cinco flujos de integración contra PostgreSQL de pruebas
+La API escucha en `http://localhost:8080`; verifica `http://localhost:8080/api/health`. Para iniciar el frontend en paralelo consulta la sección [Ejecutar localmente](../README.md#ejecutar-localmente).
 
-Usuarios demo (clave `monarca123`): `admin` (ADMIN) y `usuario` (USER).
+## Comandos disponibles
 
-### Pruebas de integración
+| Comando | Descripción |
+|---|---|
+| `npm run db:setup` | Aplica migraciones y carga las filas de demostración. |
+| `npm run db:migrate` | Aplica solo las migraciones pendientes; es el comando usado al desplegar. |
+| `npm run db:migrate:status` | Muestra migraciones aplicadas y pendientes. |
+| `npm run db:migrate:down` | Revierte la última migración. |
+| `npm run db:reset` | Destructivo: elimina el esquema y lo recrea con datos demo. Solo para base local desechable. |
+| `npm run dev` | API con recarga automática. |
+| `npm start` | Inicia la API sin modo watch. |
+| `npm test` | Ejecuta pruebas unitarias y reporte de cobertura c8. |
+| `npm run test:integration` | Ejecuta seis flujos de integración contra PostgreSQL aislado. |
 
-Las pruebas usan Supertest sobre la aplicación Express y PostgreSQL real. Por defecto, `npm run test:integration` inicia una instancia PostgreSQL embebida y aislada, aplica las migraciones, ejecuta la suite y elimina el clúster temporal. La primera ejecución descarga los binarios PostgreSQL para la plataforma. No requiere Docker, una instalación de PostgreSQL del sistema ni permisos de administrador.
+La base de datos demo contiene las cuentas `admin` (ADMIN) y `usuario` (USER), ambas con la contraseña `monarca123`. No uses esas credenciales en producción; cambia la clave administrativa y no cargues seed en una base con datos reales.
 
-Cada caso elimina en `afterEach` los usuarios, clientes, reservas, pagos y fixtures que creó; el servidor temporal también se apaga al finalizar.
+## Pruebas de integración
 
-Opcionalmente, puedes proporcionar `TEST_DATABASE_URL` (o configurarla en `.env.test`) para ejecutar contra una base PostgreSQL existente, exclusiva para pruebas. El nombre debe incluir el segmento `test` (por ejemplo, `cinema_monarca_test`); esa base debe tener aplicadas las migraciones 001–003. El runner rechaza `NODE_ENV=production`, y la configuración comprueba que la URL de pruebas no apunte a la misma base configurada en `DATABASE_URL`. Nunca uses una base con datos reales ni ejecutes `db:reset` contra producción.
+La suite usa Supertest sobre Express y PostgreSQL real. Por defecto, `npm run test:integration` inicia una instancia PostgreSQL embebida, aplica migraciones, ejecuta las pruebas y borra la base temporal. No requiere Docker ni PostgreSQL instalado. Los casos crean y limpian sus propios usuarios, clientes y recursos.
 
-### Integración continua
+Opcionalmente, puedes configurar `TEST_DATABASE_URL` (o `.env.test`) para una base PostgreSQL exclusiva de pruebas, con `test` en el nombre y migraciones 001–004 aplicadas. El runner rechaza `NODE_ENV=production` y protege contra usar la base de producción. Nunca apuntes las pruebas ni `db:reset` a una base real.
 
-El workflow `Backend tests` ejecuta `npm ci`, `npm test` (incluida la cobertura c8) y `npm run test:integration` en cada pull request hacia `main` y en cada push a `main`. El resultado aparece en las verificaciones del pull request.
+## Integración continua
+
+El workflow `Backend tests` ejecuta `npm ci`, `npm test` (incluida cobertura c8) y `npm run test:integration` en cada pull request hacia `main` y push a `main`. Consulta el estado en las verificaciones del pull request.
+
+## Mantenimiento y despliegue
+
+Cada cambio de esquema se versiona en [`migrations/`](./migrations/); Render aplica automáticamente las migraciones pendientes al iniciar el servicio. Revisa [Configuración y despliegue](./docs/CONFIGURACION.md) antes de modificar variables, base de datos, CORS o TLS.
