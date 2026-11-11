@@ -20,5 +20,6 @@ API en Node.js + Express + PostgreSQL.
 - `npm run db:setup`  crea tablas y datos semilla (se puede repetir sin duplicar)
 - `npm run db:reset`  borra todo y vuelve a crearlo
 - `npm run dev`       servidor con recarga automatica en el puerto 8080
+- `npm test`          ejecuta las pruebas unitarias y muestra cobertura con c8
 
 Usuarios demo (clave `monarca123`): `admin` (ADMIN) y `usuario` (USER).

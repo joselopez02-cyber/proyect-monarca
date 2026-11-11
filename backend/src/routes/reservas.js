@@ -5,6 +5,7 @@ import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validar, texto, idPositivo, PARAM_ID } from '../middleware/validar.js';
 import { ZONA } from '../utils/horarios.js';
+import { calcularTotalReserva } from '../utils/reservas.js';
 import { reglaSillas, conTransaccion, asegurarSillas, leerSillasBloqueando } from '../utils/sillas.js';
 import { registrarReembolso } from '../utils/reembolsos.js';
 
@@ -118,7 +119,7 @@ router.post('/', requireAuth, validar({ body: NUEVA_RESERVA }), async (req, res)
     }
 
     // 4) Crear la reserva y marcar las sillas como ocupadas
-    const total = Math.round((Number(fs[0].precio_boleto) || 0) * codigos.length * 100) / 100;
+    const total = calcularTotalReserva(fs[0].precio_boleto, codigos.length);
     const { rows: rs } = await client.query(
       `INSERT INTO reserva (nombre, tiempo, fecha, cont_num, estado, funcion_id, cust_id, total, sillas_texto)
        VALUES ($1, $2, $3, $4, 'PENDIENTE', $5, $6, $7, $8) RETURNING res_code`,

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "test": "c8 --reporter=text --include=src/utils/pagoService.js --include=src/utils/reservas.js --include=src/utils/sillas.js --include=src/middleware/validar.js --include=src/utils/validators.js node --test",
     "db:setup": "node scripts/setup-db.js",
     "db:reset": "node scripts/setup-db.js --reset",
     "db:migrate": "node scripts/migrate.js up",
@@ -22,5 +23,8 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "c8": "^10.1.3"
   }
 }
