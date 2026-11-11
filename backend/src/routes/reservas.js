@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { paginar, queryPaginacion } from '../utils/paginacion.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validar, texto, idPositivo, PARAM_ID } from '../middleware/validar.js';
@@ -47,11 +48,14 @@ const NUEVA_RESERVA = {
 };
 
 // Mis reservas (un ADMIN ve todas)
-router.get('/', requireAuth, async (req, res) => {
-  const { rows } = esAdmin(req)
-    ? await pool.query(`${SELECT_RESERVA} ORDER BY r.res_code DESC`)
-    : await pool.query(`${SELECT_RESERVA} WHERE c.usuario_id = $1 ORDER BY r.res_code DESC`, [req.user.usuarioId]);
-  res.json(rows.map(aReserva));
+const ORD_RESERVAS = { id: 'r.res_code', fecha: 'r.fecha', total: 'r.total', estado: 'r.estado', creado: 'r.creado_en' };
+router.get('/', requireAuth, validar({ query: queryPaginacion(ORD_RESERVAS) }), async (req, res) => {
+  const admin = esAdmin(req);
+  res.json(await paginar(pool, {
+    select: admin ? SELECT_RESERVA : `${SELECT_RESERVA} WHERE c.usuario_id = $1`,
+    params: admin ? [] : [req.user.usuarioId],
+    ordenables: ORD_RESERVAS, ordenDefecto: 'r.res_code DESC', query: req.datos.query, mapear: aReserva,
+  }));
 });
 
 router.get('/:id', requireAuth, validar(PARAM_ID), async (req, res) => {

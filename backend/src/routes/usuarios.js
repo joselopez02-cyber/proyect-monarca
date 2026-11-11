@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { paginar, queryPaginacion } from '../utils/paginacion.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validar, enumerado, PARAM_ID } from '../middleware/validar.js';
@@ -12,9 +13,11 @@ router.use(requireAuth);
 
 const noEncontrado = (id) => new HttpError(404, `Usuario no encontrado con id: ${id}`, 'USUARIO_NO_ENCONTRADO');
 
-router.get('/', requireRole('ADMIN'), async (_req, res) => {
-  const { rows } = await pool.query('SELECT * FROM usuario ORDER BY usuario_id');
-  res.json(rows.map(aUsuario));
+const ORD_USUARIOS = { id: 'usuario_id', username: 'username', rol: 'rol', creado: 'created_at' };
+router.get('/', requireRole('ADMIN'), validar({ query: queryPaginacion(ORD_USUARIOS) }), async (req, res) => {
+  res.json(await paginar(pool, {
+    select: 'SELECT * FROM usuario', ordenables: ORD_USUARIOS, ordenDefecto: 'usuario_id', query: req.datos.query, mapear: aUsuario,
+  }));
 });
 
 router.get('/:id', requireRole('ADMIN'), validar(PARAM_ID), async (req, res) => {

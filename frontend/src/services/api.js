@@ -62,6 +62,18 @@ export function setJwtToken(token) {
  * @param {object|null} body  Cuerpo JSON
  * @returns {Promise<any>}
  */
+const _esPagina = (j) => !!j && !Array.isArray(j) && Array.isArray(j.content) && typeof j.totalElementos === 'number' && typeof j.totalPaginas === 'number';
+
+async function _todasLasPaginas(path, primera) {
+  if (primera.totalPaginas <= 1) return primera.content;
+  const sep = path.includes('?') ? '&' : '?';
+  const pagina = (n) => api(`${path}${sep}page=${n}&size=100`);
+  const p1 = await pagina(1);
+  const todas = [...p1.content];
+  for (let n = 2; n <= p1.totalPaginas; n++) todas.push(...(await pagina(n)).content);
+  return todas;
+}
+
 export async function api(path, method = 'GET', body = null) {
   const headers = { 'Content-Type': 'application/json' };
   if (JWT_TOKEN) headers['Authorization'] = `Bearer ${JWT_TOKEN}`;
@@ -104,7 +116,10 @@ export async function api(path, method = 'GET', body = null) {
 
     setStatus(true);
     const ct = res.headers.get('content-type');
-    return ct && ct.includes('application/json') ? await res.json() : await res.text();
+    const datos = ct && ct.includes('application/json') ? await res.json() : await res.text();
+    // KAN-55: los listados llegan paginados; aquí se juntan todas las páginas para que las pantallas reciban el arreglo completo
+    if (method === 'GET' && _esPagina(datos) && !/[?&](page|size)=/.test(path)) return await _todasLasPaginas(path, datos);
+    return datos;
 
   } catch (e) {
     clearTimeout(timer);

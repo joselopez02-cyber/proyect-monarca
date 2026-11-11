@@ -3,6 +3,7 @@ import * as dbModule from '../db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { HttpError } from '../middleware/errors.js';
 import { validar, texto, PARAM_ID } from '../middleware/validar.js';
+import { paginar, queryPaginacion } from '../utils/paginacion.js';
 
 // Acepta que db.js exporte el pool directo, { pool } o { query }.
 const db = dbModule.pool || dbModule.default?.pool || dbModule.default || dbModule;
@@ -19,10 +20,12 @@ const CINE = { nombreDelCine: texto({ requerido: true, max: 255 }), cineCont: te
 const COLS = 'cine_id::int AS "cineId", nombre_del_cine AS "nombreDelCine", cine_cont AS "cineCont"';
 
 // Lista de cines (la usa la pantalla Cines & Sucursales)
-router.get('/', async (_req, res, next) => {
+const ORD_CINES = { id: 'cine_id', nombre: 'nombre_del_cine' };
+router.get('/', validar({ query: queryPaginacion(ORD_CINES) }), async (req, res, next) => {
   try {
-    const { rows } = await db.query(`SELECT ${COLS} FROM cine ORDER BY cine_id`);
-    res.json(rows);
+    res.json(await paginar(db, {
+      select: `SELECT ${COLS} FROM cine`, ordenables: ORD_CINES, ordenDefecto: 'cine_id', query: req.datos.query,
+    }));
   } catch (e) { next(e); }
 });
 

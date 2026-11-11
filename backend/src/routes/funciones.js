@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { paginar, queryPaginacion } from '../utils/paginacion.js';
 import { HttpError } from '../middleware/errors.js';
 import { validar, idPositivo, fecha, hora, numero, booleano, lista, PARAM_ID } from '../middleware/validar.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -48,6 +49,11 @@ const aFuncion = (r) => ({
 });
 
 const ORDEN = 'ORDER BY f.fecha, f.hora_inicio, f.funcion_id';
+
+// KAN-55 (HT16): listados paginados
+const ORD_FUNCIONES = { id: 'f.funcion_id', fecha: 'f.fecha', hora: 'f.hora_inicio', precio: 'f.precio_boleto', pelicula: 'p.nombre' };
+const ORDEN_FUNCIONES = 'f.fecha, f.hora_inicio, f.funcion_id';
+const PAGINACION = queryPaginacion(ORD_FUNCIONES);
 
 // Esquemas de entrada (KAN-57). Los alias (peliculaId, horaInicio, inicio, fin) vienen del backend anterior.
 const PRECIO = numero({ requerido: true, mayorQue: 0, max: 1_000_000, motivo: 'debe ser un número mayor que 0 (en pesos)' });
@@ -108,15 +114,17 @@ const SQL_CRUCE = `
                          + make_interval(mins => COALESCE(p.duracion_min, 0) + $6::int)`;
 
 // Listado. Filtros opcionales: ?movieId= &salaId= &fecha=AAAA-MM-DD
-router.get('/', validar({ query: { movieId: idPositivo(), salaId: idPositivo(), fecha: fecha() } }), async (req, res) => {
+router.get('/', validar({ query: { movieId: idPositivo(), salaId: idPositivo(), fecha: fecha(), ...PAGINACION } }), async (req, res) => {
   const cond = [];
   const params = [];
   if (req.datos.query.movieId != null) { params.push(req.datos.query.movieId); cond.push(`f.movie_id = $${params.length}`); }
   if (req.datos.query.salaId != null) { params.push(req.datos.query.salaId); cond.push(`f.sala_id = $${params.length}`); }
   if (req.datos.query.fecha != null) { params.push(req.datos.query.fecha); cond.push(`f.fecha = $${params.length}`); }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-  const { rows } = await pool.query(`${SELECT_FUNCION} ${where} ${ORDEN}`, params);
-  res.json(rows.map(aFuncion));
+  res.json(await paginar(pool, {
+    select: `${SELECT_FUNCION} ${where}`, params,
+    ordenables: ORD_FUNCIONES, ordenDefecto: ORDEN_FUNCIONES, query: req.datos.query, mapear: aFuncion,
+  }));
 });
 
 // Las funciones se guardan con fecha y hora de Colombia; el servidor puede estar en otra zona horaria
@@ -124,7 +132,7 @@ const ZONA = process.env.ZONA_HORARIA || 'America/Bogota';
 
 // Ejecuta la consulta con las condiciones dadas. Salvo que se pida todas=true, solo trae las funciones
 // vigentes: las que todavía no han empezado (fecha y hora de inicio posteriores a este momento).
-async function consultar({ condiciones = [], params = [], todas = false }) {
+async function consultar({ condiciones = [], params = [], todas = false, query = {} }) {
   const cond = [...condiciones];
   const p = [...params];
   if (!todas) {
@@ -132,42 +140,44 @@ async function consultar({ condiciones = [], params = [], todas = false }) {
     cond.push(`(f.fecha || ' ' || f.hora_inicio)::timestamp >= (NOW() AT TIME ZONE $${p.length})`);
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-  const { rows } = await pool.query(`${SELECT_FUNCION} ${where} ${ORDEN}`, p);
-  return rows.map(aFuncion);
+  return paginar(pool, {
+    select: `${SELECT_FUNCION} ${where}`, params: p,
+    ordenables: ORD_FUNCIONES, ordenDefecto: ORDEN_FUNCIONES, query, mapear: aFuncion,
+  });
 }
 
 const pideTodas = (req) => req.datos.query.todas === true;
 
 // KAN-21 (HU08): cartelera de funciones vigentes. Descarta las que ya empezaron o terminaron,
 // comparando fecha Y hora con el momento actual (no solo el día).
-router.get('/vigentes', async (_req, res) => {
-  res.json(await consultar({}));
+router.get('/vigentes', validar({ query: PAGINACION }), async (req, res) => {
+  res.json(await consultar({ query: req.datos.query }));
 });
 
 // KAN-22 (HU09): filtros de la cartelera. Por defecto solo muestran funciones vigentes;
 // con ?todas=true incluyen también las que ya pasaron.
-router.get('/pelicula/:movieId', validar({ params: { movieId: idPositivo({ requerido: true }) }, query: TODAS }), async (req, res) => {
+router.get('/pelicula/:movieId', validar({ params: { movieId: idPositivo({ requerido: true }) }, query: { ...TODAS, ...PAGINACION } }), async (req, res) => {
   const { movieId } = req.datos.params;
   const { rowCount } = await pool.query('SELECT 1 FROM pelicula WHERE movie_id = $1', [movieId]);
   if (!rowCount) throw new HttpError(404, `Película no encontrada con id: ${movieId}`, 'PELICULA_NO_ENCONTRADA');
-  res.json(await consultar({ condiciones: ['f.movie_id = $1'], params: [movieId], todas: pideTodas(req) }));
+  res.json(await consultar({ condiciones: ['f.movie_id = $1'], params: [movieId], todas: pideTodas(req), query: req.datos.query }));
 });
 
-router.get('/sala/:salaId', validar({ params: { salaId: idPositivo({ requerido: true }) }, query: TODAS }), async (req, res) => {
+router.get('/sala/:salaId', validar({ params: { salaId: idPositivo({ requerido: true }) }, query: { ...TODAS, ...PAGINACION } }), async (req, res) => {
   const { salaId } = req.datos.params;
   const { rowCount } = await pool.query('SELECT 1 FROM sala WHERE sala_id = $1', [salaId]);
   if (!rowCount) throw new HttpError(404, `Sala no encontrada con id: ${salaId}`, 'SALA_NO_ENCONTRADA');
-  res.json(await consultar({ condiciones: ['f.sala_id = $1'], params: [salaId], todas: pideTodas(req) }));
+  res.json(await consultar({ condiciones: ['f.sala_id = $1'], params: [salaId], todas: pideTodas(req), query: req.datos.query }));
 });
 
 // /api/funciones/rango?desde=2026-11-20&hasta=2026-11-25 (ambas fechas incluidas).
 // También acepta inicio y fin, los nombres que usaba el backend anterior.
 router.get('/rango', validar({
-  query: { desde: fecha({ requerido: true, alias: ['inicio'] }), hasta: fecha({ requerido: true, alias: ['fin'] }), ...TODAS },
+  query: { desde: fecha({ requerido: true, alias: ['inicio'] }), hasta: fecha({ requerido: true, alias: ['fin'] }), ...TODAS, ...PAGINACION },
   cruzada: (d, err) => { if (d.query.hasta < d.query.desde) err('hasta', 'no puede ser anterior a desde', 'query'); },
 }), async (req, res) => {
   const { desde, hasta } = req.datos.query;
-  res.json(await consultar({ condiciones: ['f.fecha BETWEEN $1 AND $2'], params: [desde, hasta], todas: pideTodas(req) }));
+  res.json(await consultar({ condiciones: ['f.fecha BETWEEN $1 AND $2'], params: [desde, hasta], todas: pideTodas(req), query: req.datos.query }));
 });
 
 router.get('/:id', validar(PARAM_ID), async (req, res) => {
