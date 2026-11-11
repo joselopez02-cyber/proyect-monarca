@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "test": "c8 --reporter=text --include=src/utils/pagoService.js --include=src/utils/reservas.js --include=src/utils/sillas.js --include=src/middleware/validar.js --include=src/utils/validators.js node --test ./tests/unit/backend.test.js",
     "test:integration": "node ./tests/integration/run.js",
+    "test:performance": "node ./tests/performance/run.js",
     "db:setup": "node scripts/setup-db.js",
     "db:reset": "node scripts/setup-db.js --reset",
     "db:migrate": "node scripts/migrate.js up",
