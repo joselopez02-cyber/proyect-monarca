@@ -32,3 +32,7 @@ Las pruebas usan Supertest sobre la aplicación Express y PostgreSQL real. Por d
 Cada caso elimina en `afterEach` los usuarios, clientes, reservas, pagos y fixtures que creó; el servidor temporal también se apaga al finalizar.
 
 Opcionalmente, puedes proporcionar `TEST_DATABASE_URL` (o configurarla en `.env.test`) para ejecutar contra una base PostgreSQL existente, exclusiva para pruebas. El nombre debe incluir el segmento `test` (por ejemplo, `cinema_monarca_test`); esa base debe tener aplicadas las migraciones 001–003. El runner rechaza `NODE_ENV=production`, y la configuración comprueba que la URL de pruebas no apunte a la misma base configurada en `DATABASE_URL`. Nunca uses una base con datos reales ni ejecutes `db:reset` contra producción.
+
+### Integración continua
+
+El workflow `Backend tests` ejecuta `npm ci`, `npm test` (incluida la cobertura c8) y `npm run test:integration` en cada pull request hacia `main` y en cada push a `main`. El resultado aparece en las verificaciones del pull request.
