@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { paginar, queryPaginacion } from '../utils/paginacion.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validar, texto, entero, PARAM_ID } from '../middleware/validar.js';
@@ -47,14 +48,16 @@ async function buscar(id) {
 }
 
 // Listado (opcional ?nombre=texto)
-router.get('/', validar({ query: { nombre: texto({ max: 255 }) } }), async (req, res) => {
+const ORD_PELICULAS = { id: 'movie_id', nombre: 'nombre', duracion: 'duracion_min', genero: 'genero' };
+router.get('/', validar({ query: { nombre: texto({ max: 255 }), ...queryPaginacion(ORD_PELICULAS) } }), async (req, res) => {
   const nombre = req.datos.query.nombre ?? '';
-  const { rows } = nombre
-    ? await pool.query(
-        `SELECT ${COLUMNAS} FROM pelicula WHERE nombre ILIKE '%' || $1 || '%' ORDER BY movie_id`,
-        [nombre.replace(/[\\%_]/g, '\\$&')])
-    : await pool.query(`SELECT ${COLUMNAS} FROM pelicula ORDER BY movie_id`);
-  res.json(rows.map(aPelicula));
+  res.json(await paginar(pool, {
+    select: nombre
+      ? `SELECT ${COLUMNAS} FROM pelicula WHERE nombre ILIKE '%' || $1 || '%'`
+      : `SELECT ${COLUMNAS} FROM pelicula`,
+    params: nombre ? [nombre.replace(/[\\%_]/g, '\\$&')] : [],
+    ordenables: ORD_PELICULAS, ordenDefecto: 'movie_id', query: req.datos.query, mapear: aPelicula,
+  }));
 });
 
 router.get('/:id', validar(PARAM_ID), async (req, res) => {

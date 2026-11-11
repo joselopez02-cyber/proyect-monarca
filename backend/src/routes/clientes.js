@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pool from '../db.js';
+import { paginar, queryPaginacion } from '../utils/paginacion.js';
 import { HttpError } from '../middleware/errors.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validar, texto, entero, correo, PARAM_ID } from '../middleware/validar.js';
@@ -51,7 +52,8 @@ function exigirDuenio(req, fila) {
 }
 
 // Listado. Un ADMIN ve todos; los demás, solo el suyo. Filtros opcionales: ?nombre= &email=
-router.get('/', requireAuth, validar({ query: { email: texto({ max: 254 }), nombre: texto({ max: 255 }) } }), async (req, res) => {
+const ORD_CLIENTES = { id: 'cust_id', nombre: 'nombre_cliente' };
+router.get('/', requireAuth, validar({ query: { email: texto({ max: 254 }), nombre: texto({ max: 255 }), ...queryPaginacion(ORD_CLIENTES) } }), async (req, res) => {
   const cond = [];
   const params = [];
   if (!esAdmin(req)) { params.push(req.user.usuarioId); cond.push(`usuario_id = $${params.length}`); }
@@ -60,8 +62,10 @@ router.get('/', requireAuth, validar({ query: { email: texto({ max: 254 }), nomb
   const nombre = req.datos.query.nombre ?? '';
   if (nombre) { params.push(nombre.replace(/[\\%_]/g, '\\$&')); cond.push(`nombre_cliente ILIKE '%' || $${params.length} || '%'`); }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
-  const { rows } = await pool.query(`SELECT * FROM cliente ${where} ORDER BY cust_id`, params);
-  res.json(rows.map(aCliente));
+  res.json(await paginar(pool, {
+    select: `SELECT * FROM cliente ${where}`, params,
+    ordenables: ORD_CLIENTES, ordenDefecto: 'cust_id', query: req.datos.query, mapear: aCliente,
+  }));
 });
 
 router.get('/:id', requireAuth, validar(PARAM_ID), async (req, res) => {
