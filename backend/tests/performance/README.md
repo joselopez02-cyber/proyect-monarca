@@ -38,3 +38,21 @@ No se agregó compresión ni caché HTTP: esta prueba no midió ancho de banda o
 Los datos son sintéticos y locales; el resultado no representa necesariamente el volumen, hardware, red, Render o Neon del despliegue. La prueba no identifica por sí sola límites de CPU o memoria. Valida el p95 de esta consulta hasta 50 VUs, no el punto de quiebre máximo del sistema.
 
 La medición HT23 original sobre `/api/health` se conserva en `evidence/local-ramp-report.html`, pero no se compara directamente con esta prueba de cartelera porque usa otro endpoint y otra carga.
+
+## KAN-46 (HT12): carga normal de los flujos principales
+
+Desde `backend`, ejecuta:
+
+```powershell
+npm run test:performance:ht12
+```
+
+El runner requiere Grafana k6 en `PATH` (o `K6_BIN`), construye el frontend y usa un PostgreSQL temporal. La prueba rechaza hosts remotos y verifica que `NODE_ENV` no sea `production`. Genera 50 cuentas/clientes y funciones sintéticas locales; cada VU consulta la cartelera, inicia sesión al comenzar y renueva la sesión periódicamente, bloquea una silla, crea y paga una reserva con NEQUI/PSE, y consulta la reserva confirmada. Las reservas se aíslan por usuario y función.
+
+La rampa dura exactamente cinco minutos: 20 VUs al segundo 30, aumento gradual hasta 50 VUs al segundo 90, 50 VUs durante tres minutos y descenso a 20 VUs en el último tramo. Se registran promedio, p95, solicitudes por segundo y porcentaje de errores, tanto globalmente como por endpoint y por flujo de checkout. Umbrales de observación: API p95 < 500 ms, checkout p95 < 3 s y errores < 1%; k6 devuelve un código distinto de cero cuando se incumple un umbral.
+
+Después de k6 se ejecuta Google Lighthouse contra el mismo frontend/API local, usando Chrome o Edge. `CHROME_PATH` permite indicar otra ubicación de navegador. Los informes de k6 y Lighthouse se generan bajo `tests/performance/evidence/`; los resultados de k6 no versionados se guardan en `tests/performance/results-ht12/`.
+
+La carga, datos y navegador son locales. El resultado mide este equipo y la semilla sintética, no el servicio desplegado. No extrapoles latencias, límites de CPU/memoria ni conexiones de base de datos a Render/Neon. Para conclusiones sobre el despliegue, repite únicamente en staging autorizado y recoge métricas del proveedor durante la prueba.
+
+La ejecución local HT12 y su interpretación están documentadas en [`evidence/ht12-results.md`](./evidence/ht12-results.md); incluye el resumen, desglose por fase/endpoint y el informe Lighthouse.
