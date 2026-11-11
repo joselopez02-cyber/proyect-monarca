@@ -1,4 +1,5 @@
 import EmbeddedPostgres from 'embedded-postgres';
+import { Client } from 'pg';
 import { randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -54,6 +55,62 @@ async function esperarApi(baseUrl) {
   throw new Error('La API local no respondió health dentro de 30 segundos.');
 }
 
+function esperarSalida(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const alSalir = () => {
+      clearTimeout(limite);
+      resolve(true);
+    };
+    const limite = setTimeout(() => {
+      child.removeListener('exit', alSalir);
+      resolve(false);
+    }, timeoutMs);
+    child.once('exit', alSalir);
+  });
+}
+
+async function detenerApi(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  child.kill('SIGTERM');
+  if (await esperarSalida(child, 15_000)) return;
+  child.kill('SIGKILL');
+  if (!await esperarSalida(child, 5_000)) {
+    throw new Error('No se pudo detener el servidor local de la prueba de rendimiento.');
+  }
+}
+
+async function seedCatalogo(databaseUrl) {
+  const client = new Client({ connectionString: databaseUrl });
+  await client.connect();
+  try {
+    await client.query(`
+      INSERT INTO pelicula (movie_id, nombre, descripcion, duracion_min, genero, clasificacion)
+      SELECT id, 'Película de carga ' || id, 'Dato sintético para benchmark local', 120, 'Drama', 'PG-13'
+        FROM generate_series(1, 100) AS id
+    `);
+    await client.query(`
+      INSERT INTO sala (sala_id, nombre, tipo, capacidad, filas, columnas)
+      SELECT id, 'Sala de carga ' || id, 'DOS_D', 120, 10, 12
+        FROM generate_series(1, 200) AS id
+    `);
+    await client.query(`
+      INSERT INTO funcion (funcion_id, movie_id, sala_id, fecha, hora_inicio, precio_boleto, capacidad_total, asientos_disponibles)
+      SELECT slot.id + 1,
+             ((slot.id * 17) % 100) + 1,
+             (slot.id / 540) + 1,
+             TO_CHAR(CURRENT_DATE + ((slot.id % 540) / 6) - 59, 'YYYY-MM-DD'),
+             TO_CHAR(TIME '10:00' + ((slot.id % 6) * INTERVAL '2 hours'), 'HH24:MI'),
+             16000, 120, 120
+        FROM generate_series(0, 107999) AS slot(id)
+    `);
+    await client.query('ANALYZE funcion');
+    process.stdout.write('Semilla sintética: 100 películas, 200 salas y 108.000 funciones desde 59 días atrás hasta 30 días adelante.\n');
+  } finally {
+    await client.end();
+  }
+}
+
 try {
   const version = spawnSync(k6, ['version'], { encoding: 'utf8' });
   if (version.error || version.status !== 0) {
@@ -91,11 +148,19 @@ try {
   };
   process.stdout.write('Aplicando migraciones a PostgreSQL temporal...\n');
   ejecutarNode(['scripts/migrate.js', 'up'], serverEnv);
+  await seedCatalogo(databaseUrl);
 
   const serverCode = `
     import app from './src/app.js';
+    import pool from './src/db.js';
     const server = app.listen(Number(process.env.PORT), '127.0.0.1', () => console.log('Local stress API ready'));
-    process.on('SIGTERM', () => server.close(() => process.exit(0)));
+    process.once('SIGTERM', () => {
+      server.closeAllConnections();
+      server.close(async () => {
+        await pool.end();
+        process.exit(0);
+      });
+    });
   `;
   server = spawn(process.execPath, ['--input-type=module', '-e', serverCode], {
     cwd: root,
@@ -106,7 +171,7 @@ try {
   const baseUrl = `http://127.0.0.1:${apiPort}`;
   await esperarApi(baseUrl);
   await mkdir(resultsDir, { recursive: true });
-  process.stdout.write('Objetivo local verificado: 127.0.0.1; ejecutando rampa de 0–50 VUs por 3 min y recuperación de 1 min.\n');
+  process.stdout.write('Objetivo local verificado: 127.0.0.1; ejecutando rampa de cartelera de 0–50 VUs por 3 min y recuperación de 1 min.\n');
 
   const result = spawnSync(k6, [
     'run',
@@ -123,16 +188,13 @@ try {
     process.stdout.write(`k6 finalizó con código ${result.status}; revisa los umbrales y el informe generado.\n`);
   }
 } finally {
-  if (server && server.exitCode === null) {
-    server.kill();
-    await new Promise((resolve) => {
-      const timeout = setTimeout(resolve, 5000);
-      server.once('exit', () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-    });
+  try {
+    await detenerApi(server);
+  } finally {
+    try {
+      if (postgres) await postgres.stop();
+    } finally {
+      if (databaseDir) await rm(databaseDir, { recursive: true, force: true });
+    }
   }
-  if (postgres) await postgres.stop();
-  if (databaseDir) await rm(databaseDir, { recursive: true, force: true });
 }

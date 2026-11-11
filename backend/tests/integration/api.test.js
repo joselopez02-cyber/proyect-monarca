@@ -50,7 +50,7 @@ async function registerClient(token) {
   return response.body;
 }
 
-async function createFunction() {
+async function createFunction({ fecha, hora = '23:50' } = {}) {
   const { rows: cinemaRows } = await pool.query(
     'INSERT INTO cine (nombre_del_cine, cine_cont) VALUES ($1, $2) RETURNING cine_id',
     [`Cine integración ${randomUUID()}`, 'Integración']);
@@ -77,12 +77,12 @@ async function createFunction() {
   const movieId = Number(movieRows[0].movie_id);
   resources.movies.push(movieId);
 
-  const futureDate = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const futureDate = fecha ?? new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const { rows: functionRows } = await pool.query(
     `INSERT INTO funcion
        (movie_id, sala_id, fecha, hora_inicio, precio_boleto, capacidad_total, asientos_disponibles)
-     VALUES ($1, $2, $3, '23:50', 12500, 4, 4) RETURNING funcion_id`,
-    [movieId, roomId, futureDate]);
+     VALUES ($1, $2, $3, $4, 12500, 4, 4) RETURNING funcion_id`,
+    [movieId, roomId, futureDate, hora]);
   const functionId = Number(functionRows[0].funcion_id);
   resources.functions.push(functionId);
   return functionId;
@@ -137,9 +137,9 @@ async function cleanup() {
 describe('Flujos de integración de la API con PostgreSQL', () => {
   before(async () => {
     const { rows } = await pool.query(
-      `SELECT version FROM schema_migrations WHERE version IN (1, 2, 3) ORDER BY version`);
-    assert.deepEqual(rows.map((row) => Number(row.version)), [1, 2, 3],
-      'La base TEST_DATABASE_URL debe tener aplicadas las migraciones 001, 002 y 003.');
+      `SELECT version FROM schema_migrations WHERE version IN (1, 2, 3, 4) ORDER BY version`);
+    assert.deepEqual(rows.map((row) => Number(row.version)), [1, 2, 3, 4],
+      'La base TEST_DATABASE_URL debe tener aplicadas las migraciones 001 a 004.');
     await pool.query('SELECT 1 FROM usuario, cliente, funcion, reserva, transaccion, silla LIMIT 0');
   });
 
@@ -164,6 +164,20 @@ describe('Flujos de integración de la API con PostgreSQL', () => {
     const { rows } = await pool.query(
       'SELECT telefono FROM usuario WHERE usuario_id = $1', [user.usuarioId]);
     assert.equal(rows[0].telefono, '3009876543');
+  });
+
+  it('lista funciones futuras de la cartelera y excluye las que ya iniciaron', async () => {
+    const pastFunctionId = await createFunction({ fecha: '2000-01-01', hora: '23:50' });
+    const futureFunctionId = await createFunction();
+
+    const response = await request(app)
+      .get('/api/funciones/vigentes?page=1&size=100')
+      .expect(200);
+    const listedIds = response.body.content.map((funcion) => funcion.funcionId);
+
+    assert.ok(listedIds.includes(futureFunctionId));
+    assert.ok(!listedIds.includes(pastFunctionId));
+    assert.equal(response.body.totalElementos, 1);
   });
 
   it('crea y paga una reserva, que queda confirmada en la API y en PostgreSQL', async () => {
