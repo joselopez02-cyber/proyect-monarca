@@ -1,29 +1,40 @@
-# HT23 — Prueba local de estrés en rampa
+# Pruebas de rendimiento local
 
-La prueba usa Grafana k6 contra una API que el runner inicia solo en `127.0.0.1`, con un PostgreSQL temporal y migraciones propias. No necesita cuenta, credenciales ni red hacia Render/Neon. No uses `BASE_URL` para apuntar a producción: el script rechaza hosts que no sean `localhost`, `127.0.0.1` o `::1`.
+El runner inicia una API en `127.0.0.1` y un PostgreSQL temporal, aplica las migraciones, crea datos sintéticos, ejecuta Grafana k6 y limpia los procesos y archivos temporales. No envía carga a Render, Neon ni otros servicios. No ejecutes estas pruebas con `NODE_ENV=production`.
 
 ## Ejecutar
 
-1. Instala Grafana k6 para tu sistema operativo y verifica `k6 version`.
-2. Desde `backend`, ejecuta:
+Desde `backend`:
 
-   ```powershell
-   npm run test:performance
-   ```
+```powershell
+npm run test:performance
+```
 
-   Si k6 no está en `PATH`, define `K6_BIN` con la ruta local a `k6.exe`.
-3. Revisa `backend/tests/performance/results/report.html` y `summary.json`. La carpeta generada está ignorada por Git; la evidencia de referencia versionada está en `evidence/local-ramp-report.html`.
+Instala Grafana k6 y verifica `k6 version`. Si `k6` no está en `PATH`, define `K6_BIN` con la ruta a `k6.exe`. Los resultados generados se guardan bajo `tests/performance/results/` y se ignoran con Git.
 
-El escenario dura cuatro minutos: rampa progresiva a 10, 25 y 50 VUs durante 160 segundos, 20 segundos al máximo, bajada a 1 VU y observación de recuperación durante 60 segundos. Cada VU consulta el endpoint local `/api/health` aproximadamente una vez por segundo. Umbrales de degradación: p95 mayor o igual a 500 ms o errores igual o mayores a 1%. El código de salida de k6 falla si se excede un umbral.
+La rampa dura cuatro minutos: incrementa hasta 50 VUs, mantiene el máximo brevemente, desciende a 1 VU y observa la recuperación. El objetivo predeterminado es la cartelera paginada (`/api/funciones/vigentes?page=1&size=20`). El runner prepara 100 películas, 200 salas y 108.000 funciones sintéticas distribuidas entre 59 días anteriores y 30 días futuros. Umbrales: p95 menor a 500 ms y fallos menores a 1%; k6 devuelve un código distinto de cero cuando se incumplen.
 
-## Evidencia de ejecución
+## KAN-60 (HT21): comparación antes y después
 
-La corrida local de referencia se conserva en [`evidence/local-ramp-report.html`](./evidence/local-ramp-report.html): 4.417 solicitudes, p95 agregado de 2,63 ms y 0% de errores; los umbrales se cumplieron hasta 50 VUs. No se detectó el punto de quiebre en ese rango.
+La medición se hizo en el mismo equipo, con la misma rampa de 50 VUs, endpoint y conjunto de datos sintéticos. Los informes HTML y resúmenes JSON de ambas ejecuciones están versionados en `evidence/`.
 
-## Interpretación y límites
+| Medición | Solicitudes | p95 agregado | Pico p95 | Errores |
+|---|---:|---:|---:|---:|
+| Antes | 4.236 | 75,19 ms | 91,17 ms | 0 % |
+| Después | 4.258 | 68,32 ms | 74,39 ms | 0 % |
 
-El informe identifica la primera fase que incumple los umbrales. Si todas pasan, el resultado significa **“no se observó el punto de quiebre hasta 50 VUs”**, no que el límite máximo del sistema esté determinado. La latencia de `/api/health` mide conjuntamente API, loopback y consulta `SELECT 1` a PostgreSQL; por sí sola no atribuye la degradación a CPU, memoria o base de datos.
+El p95 agregado bajó **9,13 %** y el p95 durante la fase pico bajó **18,40 %**. Ambas corridas cumplieron el umbral de 500 ms.
 
-Esta ejecución local no mide Render, Neon, el ancho de banda público ni sus límites de conexiones. Para identificar esos componentes se necesitan paneles y métricas del despliegue, autorización explícita, una ventana acordada y una rampa separada y controlada en staging. No ejecutar pruebas de punto de quiebre en producción.
+### Cambios respaldados por la medición
 
-La base temporal, la API y el clúster de PostgreSQL se limpian al finalizar incluso si k6 falla. Los resultados se conservan en `results/`.
+- Se añadió el índice compuesto de fecha, hora e identificador usado por el filtro y el orden de cartelera.
+- El filtro de funciones vigentes compara las columnas canónicas `YYYY-MM-DD` y `HH:mm` como una tupla, conservando el corte de tiempo al minuto y habilitando el índice.
+- El conteo paginado de funciones cuenta directamente la tabla `funcion`, sin repetir los `JOIN` de película y sala que solo necesita la página de resultados.
+
+No se agregó compresión ni caché HTTP: esta prueba no midió ancho de banda o respuestas repetidas desde clientes, así que esas mejoras no están respaldadas por estos datos.
+
+## Límites
+
+Los datos son sintéticos y locales; el resultado no representa necesariamente el volumen, hardware, red, Render o Neon del despliegue. La prueba no identifica por sí sola límites de CPU o memoria. Valida el p95 de esta consulta hasta 50 VUs, no el punto de quiebre máximo del sistema.
+
+La medición HT23 original sobre `/api/health` se conserva en `evidence/local-ramp-report.html`, pero no se compara directamente con esta prueba de cartelera porque usa otro endpoint y otra carga.

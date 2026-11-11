@@ -5,6 +5,7 @@ import { Rate, Trend } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:8080';
 const REPORT_DIR = __ENV.REPORT_DIR || './tests/performance/results';
+const TARGET_PATH = '/api/funciones/vigentes?page=1&size=20';
 const target = BASE_URL.match(/^https?:\/\/(\[[^\]]+\]|[^/:?#]+)(?::\d+)?\/?$/i);
 const hostname = target?.[1].replace(/^\[|\]$/g, '');
 
@@ -113,25 +114,28 @@ function report(data) {
   const thresholdList = failedThresholds.length
     ? `<ul>${failedThresholds.map((failure) => `<li>${escapeHtml(failure)}</li>`).join('')}</ul>`
     : '<p>Todos los umbrales configurados se cumplieron.</p>';
-  const customCharts = chart(data, 'api_latency', 'Latencia API por fase (p95)', {
+  const customCharts = chart(data, 'api_latency', 'Latencia de cartelera por fase (p95)', {
     key: 'p(95)', format: (value) => `${Math.round(value)} ms`,
   });
   const errorChart = chart(data, 'api_failure_rate', 'Tasa de fallo API por fase', {
     key: 'rate', format: (value) => `${(value * 100).toFixed(2)}%`,
   });
   const date = new Date().toISOString();
-  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Informe de estrés local</title><style>body{font:16px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222}section{margin:2rem 0}svg{width:100%;max-width:760px;background:#f6f8fa}h1,h2{color:#0969da}.notice{padding:1rem;background:#fff8c5}code{overflow-wrap:anywhere}</style><h1>Prueba de estrés en rampa (entorno local)</h1><p>Generado: ${date}</p><p>Objetivo: <code>${escapeHtml(BASE_URL)}</code> · Máximo: 50 VUs · Duración: 4 min.</p>${vuChart()}${customCharts}${errorChart}<section><h2>Resultado e interpretación</h2><p>${escapeHtml(finding)}</p><p>El endpoint de salud mide el recorrido conjunto API + consulta PostgreSQL local. No permite atribuir CPU/RAM ni aislar el tiempo de Neon/Render; esos componentes no se midieron en esta ejecución local.</p>${thresholdList}<p>Umbrales: p95 &lt; 500 ms y fallos &lt; 1%. La degradación se define como el primer umbral por fase que no se cumpla.</p></section><p class="notice">No extrapolar estos resultados al despliegue Render/Neon ni ejecutar la rampa contra producción. Aumenta el límite solo con autorización y monitorización del entorno objetivo.</p></html>`;
+  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Informe de estrés local</title><style>body{font:16px system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;color:#222}section{margin:2rem 0}svg{width:100%;max-width:760px;background:#f6f8fa}h1,h2{color:#0969da}.notice{padding:1rem;background:#fff8c5}code{overflow-wrap:anywhere}</style><h1>Prueba de estrés de cartelera (entorno local)</h1><p>Generado: ${date}</p><p>Objetivo: <code>${escapeHtml(BASE_URL + TARGET_PATH)}</code> · Máximo: 50 VUs · Duración: 4 min.</p>${vuChart()}${customCharts}${errorChart}<section><h2>Resultado e interpretación</h2><p>${escapeHtml(finding)}</p><p>La medición recorre el endpoint paginado de cartelera y PostgreSQL local con datos sintéticos. No mide Render ni Neon ni permite atribuir por sí sola el límite a CPU/RAM.</p>${thresholdList}<p>Umbrales: p95 &lt; 500 ms y fallos &lt; 1%. La degradación se define como el primer umbral por fase que no se cumpla.</p></section><p class="notice">No extrapolar estos resultados al despliegue Render/Neon ni ejecutar la rampa contra producción. Aumenta el límite solo con autorización y monitorización del entorno objetivo.</p></html>`;
 }
 
 export default function () {
   const phase = phaseAt(exec.scenario.progress);
-  const response = http.get(`${BASE_URL.replace(/\/$/, '')}/api/health`, {
+  const response = http.get(`${BASE_URL.replace(/\/$/, '')}${TARGET_PATH}`, {
     tags: { phase },
     timeout: '5s',
   });
-  const healthy = response.status === 200 && response.json('db') === 'up';
+  const body = response.status === 200 ? response.json() : null;
+  const healthy = response.status === 200
+    && Array.isArray(body?.content)
+    && body.totalElementos > 0;
   check(response, {
-    'health responde HTTP 200 y db up': () => healthy,
+    'cartelera responde HTTP 200 con funciones': () => healthy,
   });
   phaseDuration.add(response.timings.duration, { phase });
   phaseFailures.add(!healthy, { phase });

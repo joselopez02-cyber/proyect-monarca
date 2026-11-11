@@ -32,10 +32,11 @@ export const queryPaginacion = (ordenables) => ({
 //   ordenDefecto 'col1, col2 DESC': orden por defecto y desempate
 //   query        req.datos.query ya validado
 //   mapear       función fila -> objeto de respuesta
-export async function paginar(db, { select, params = [], ordenables, ordenDefecto, query, mapear = (r) => r }) {
+export async function paginar(db, { select, countSelect, params = [], ordenables, ordenDefecto, query, mapear = (r) => r }) {
   const page = query.page ?? 1;
   const size = Math.min(query.size ?? TAM_DEFECTO, TAM_MAX);
-  const { rows: [{ total }] } = await db.query(`SELECT COUNT(*)::int AS total FROM (${select}) AS q`, params);
+  const countQuery = countSelect ?? `SELECT COUNT(*)::int AS total FROM (${select}) AS q`;
+  const { rows: [{ total }] } = await db.query(countQuery, params);
   const orden = query.sort
     ? `${ordenables[query.sort.campo]} ${query.sort.dir === 'desc' ? 'DESC' : 'ASC'}, ${ordenDefecto}`
     : ordenDefecto;

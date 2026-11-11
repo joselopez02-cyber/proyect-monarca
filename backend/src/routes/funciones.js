@@ -122,7 +122,9 @@ router.get('/', validar({ query: { movieId: idPositivo(), salaId: idPositivo(), 
   if (req.datos.query.fecha != null) { params.push(req.datos.query.fecha); cond.push(`f.fecha = $${params.length}`); }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
   res.json(await paginar(pool, {
-    select: `${SELECT_FUNCION} ${where}`, params,
+    select: `${SELECT_FUNCION} ${where}`,
+    countSelect: `SELECT COUNT(*)::int AS total FROM funcion f ${where}`,
+    params,
     ordenables: ORD_FUNCIONES, ordenDefecto: ORDEN_FUNCIONES, query: req.datos.query, mapear: aFuncion,
   }));
 });
@@ -137,11 +139,22 @@ async function consultar({ condiciones = [], params = [], todas = false, query =
   const p = [...params];
   if (!todas) {
     p.push(ZONA);
-    cond.push(`(f.fecha || ' ' || f.hora_inicio)::timestamp >= (NOW() AT TIME ZONE $${p.length})`);
+    // fecha/hora use formats ISO y HH:mm; al redondear al minuto se conserva el filtro temporal y el índice compuesto.
+    const ahora = `(NOW() AT TIME ZONE $${p.length})`;
+    const siguienteMinuto = `(date_trunc('minute', ${ahora}) + CASE
+      WHEN EXTRACT(SECOND FROM ${ahora}) > 0 THEN INTERVAL '1 minute'
+      ELSE INTERVAL '0 minute'
+    END)`;
+    cond.push(`(f.fecha, f.hora_inicio) >= (
+      TO_CHAR(${siguienteMinuto}, 'YYYY-MM-DD'),
+      TO_CHAR(${siguienteMinuto}, 'HH24:MI')
+    )`);
   }
   const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
   return paginar(pool, {
-    select: `${SELECT_FUNCION} ${where}`, params: p,
+    select: `${SELECT_FUNCION} ${where}`,
+    countSelect: `SELECT COUNT(*)::int AS total FROM funcion f ${where}`,
+    params: p,
     ordenables: ORD_FUNCIONES, ordenDefecto: ORDEN_FUNCIONES, query, mapear: aFuncion,
   });
 }
