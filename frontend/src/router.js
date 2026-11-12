@@ -88,6 +88,7 @@ export function initRouter() {
     .resolve();
 
   window.addEventListener('monarca:authenticated', () => router.navigate('/dashboard'));
+  window.addEventListener('monarca:logged-out', () => router.navigate('/'));
 
   // Si el servidor responde 401 (token vencido o inválido) se vuelve al inicio de sesión,
   // en vez de dejar el panel abierto con el error "Sesión expirada" en cada tabla.

@@ -206,10 +206,7 @@ export async function handleRegister(e) {
 export function logout() {
   sessionStorage.clear();
   SESSION_KEYS.forEach(k => localStorage.removeItem(k));
-  // Con el router por hash, la URL seguiría en #/dashboard y al recargar se vería el panel vacío:
-  // se vuelve al inicio de sesión antes de recargar.
-  location.hash = '#/';
-  location.reload();
+  window.dispatchEvent(new Event('monarca:logged-out'));
 }
 
 // ── Tabs del formulario de autenticación ─────────────────────

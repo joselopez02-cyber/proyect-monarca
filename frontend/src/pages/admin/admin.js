@@ -632,33 +632,37 @@ export function renderFuncionesAgrupadas(funciones) {
     const ids      = funcs.map(f => f.funcionId);
     const upcoming = funcs.filter(f => f.fecha >= new Date().toISOString().split('T')[0]).length;
     return `
-    <div class="card mb-2" style="padding:0;overflow:hidden;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--c-card);border-bottom:1px solid var(--c-border);flex-wrap:wrap;gap:10px;">
-        <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;">
+    <article class="card function-group-card mb-2">
+      <header class="function-group-header">
+        <div class="function-group-heading">
           <input type="checkbox" style="accent-color:var(--c-gold);width:14px;height:14px;cursor:pointer;flex-shrink:0;"
             onchange="toggleGrupo([${ids.join(',')}], this.checked)">
-          <div style="min-width:0;">
-            <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${g.pelicula?.nombre || '—'}</div>
-            <div style="font-size:11px;color:var(--c-muted);">${g.sala?.nombre || '—'} · <span class="badge badge-blue" style="font-size:9px;">${tipoLabel(g.sala?.tipo)}</span> · 📍 ${g.sala?.sucursal?.branLocation || '—'}</div>
+          <div class="function-group-title">
+            <div class="function-group-movie">${g.pelicula?.nombre || '—'}</div>
+            <div class="function-group-meta">
+              <span>${g.sala?.nombre || '—'}</span>
+              <span class="badge badge-blue">${tipoLabel(g.sala?.tipo)}</span>
+              <span>📍 ${g.sala?.sucursal?.branLocation || '—'}</span>
+            </div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <div class="function-group-actions">
           <span class="badge badge-gold">${funcs.length} funciones</span>
           <span class="badge badge-green">${upcoming} próximas</span>
-          <button class="btn btn-sm" title="Ver & Editar" onclick="abrirDetallesGrupo('${key}')" style="padding:5px 10px;font-size:16px;line-height:1;">👁</button>
-          <button class="btn btn-sm btn-danger" onclick="eliminarGrupo([${ids.join(',')}])">🗑</button>
+          <button type="button" class="btn btn-sm" aria-label="Ver y editar funciones de ${g.pelicula?.nombre || 'película'}" title="Ver y editar funciones" onclick="abrirDetallesGrupo('${key}')">👁 <span>Ver funciones</span></button>
+          <button type="button" class="btn btn-sm btn-danger" aria-label="Eliminar grupo de funciones de ${g.pelicula?.nombre || 'película'}" onclick="eliminarGrupo([${ids.join(',')}])">🗑 <span>Eliminar grupo</span></button>
         </div>
-      </div>
-      <div style="padding:12px 18px;display:flex;flex-wrap:wrap;gap:6px;">
+      </header>
+      <div class="function-group-schedule" aria-label="Horarios programados">
         ${sorted.slice(0, 8).map(f => `
-          <div style="background:var(--c-bg);border:1px solid var(--c-border);border-radius:6px;padding:5px 10px;font-family:monospace;font-size:11px;cursor:pointer;transition:border-color 0.2s;"
-               onmouseenter="this.style.borderColor='var(--c-gold)'" onmouseleave="this.style.borderColor='var(--c-border)'"
-               onclick="abrirEditFuncionInd(${f.funcionId})">
-            <span style="color:var(--c-muted);">${f.fecha}</span> <span style="color:var(--c-gold);font-weight:700;">${(f.horaInicio||'').slice(0,5)}</span>
-          </div>`).join('')}
-        ${sorted.length > 8 ? `<div style="background:var(--c-bg);border:1px dashed var(--c-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--c-muted);cursor:pointer;" onclick="abrirDetallesGrupo('${key}')">+${sorted.length - 8} más…</div>` : ''}
+          <button type="button" class="function-time-chip" aria-label="Editar función del ${f.fecha} a las ${(f.horaInicio || '').slice(0, 5)}"
+            onclick="abrirEditFuncionInd(${f.funcionId})">
+            <span class="function-time-date">${f.fecha}</span>
+            <span class="function-time-hour">${(f.horaInicio || '').slice(0, 5)}</span>
+          </button>`).join('')}
+        ${sorted.length > 8 ? `<button type="button" class="function-time-chip function-time-chip-more" onclick="abrirDetallesGrupo('${key}')">Ver ${sorted.length - 8} horarios más</button>` : ''}
       </div>
-    </div>`;
+    </article>`;
   }).join('');
   const filConteo = document.getElementById('fil_f_conteo');
   if (filConteo) filConteo.textContent = totalVis < funciones.length ? `${totalVis} de ${funciones.length} funciones` : '';
