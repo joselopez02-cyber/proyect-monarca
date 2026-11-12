@@ -59,7 +59,6 @@ export function initRouter() {
         console.log('Ruta: Login');
         render(loginHtml);
         document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
-        document.getElementById('loginSubmit')?.addEventListener('click', handleLogin);
         document.getElementById('registerForm')?.addEventListener('submit', handleRegister);
         document.querySelectorAll('.auth-tab').forEach((button, index) => {
           button.addEventListener('click', () => switchAuthTab(index === 0 ? 'login' : 'register', button));

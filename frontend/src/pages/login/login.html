@@ -11,29 +11,29 @@
 
     <form id="loginForm" class="auth-form active">
       <div class="input-group" style="text-align:left">
-        <label>Usuario</label>
-        <input type="text" id="l_user" placeholder="Usuario" required="">
+        <label for="l_user">Usuario</label>
+        <input type="text" id="l_user" name="username" placeholder="Usuario" autocomplete="username" required>
       </div>
       <div class="input-group" style="text-align:left">
-        <label>Contraseña</label>
-        <input type="password" id="l_pass" placeholder="••••••••" required="">
+        <label for="l_pass">Contraseña</label>
+        <input type="password" id="l_pass" name="password" placeholder="••••••••" autocomplete="current-password" required>
       </div>
-      <button id="loginSubmit" type="button" class="btn btn-primary w-full" style="padding:12px;margin-top:8px;font-size:14px"> Iniciar Sesión
+      <button id="loginSubmit" type="submit" class="btn btn-primary w-full" style="padding:12px;margin-top:8px;font-size:14px"> Iniciar Sesión
       </button>
       <p id="loginError" role="alert" style="font-size:12px;color:var(--c-red);margin-top:10px;display:none"></p>
 
     </form>
 
     <form id="registerForm" class="auth-form" style="max-height:420px;overflow-y:auto;padding-right:4px">
-      <div class="input-group" style="text-align:left"><label>Usuario *</label><input type="text" id="r_username" placeholder="Ej: juan_garcia" required=""></div>
-      <div class="input-group" style="text-align:left"><label>Nombre completo *</label><input type="text" id="r_nombreCompleto" placeholder="Juan García Pérez" required=""></div>
-      <div class="input-group" style="text-align:left"><label>Email *</label><input type="email" id="r_email" placeholder="correo@ejemplo.com" required=""></div>
-      <div class="input-group" style="text-align:left"><label>Cédula *</label><input type="text" id="r_cedula" placeholder="Ej: 1144024680" required=""></div>
-      <div class="input-group" style="text-align:left"><label>Teléfono</label><input type="text" id="r_telefono" placeholder="3001234567"></div>
-      <div class="input-group" style="text-align:left"><label>Dirección</label><input type="text" id="r_direccion" placeholder="Cra 5 # 10-20, Cali"></div>
-      <div class="input-group" style="text-align:left"><label>Fecha de nacimiento</label><input type="date" id="r_fechaNac"></div>
-      <div class="input-group" style="text-align:left"><label>Contraseña *</label><input type="password" id="r_password" placeholder="Mínimo 6 caracteres" required="" minlength="6"></div>
-      <div class="input-group" style="text-align:left"><label>Confirmar contraseña *</label><input type="password" id="r_password2" placeholder="Repite la contraseña" required=""></div>
+      <div class="input-group" style="text-align:left"><label for="r_username">Usuario *</label><input type="text" id="r_username" placeholder="Ej: juan_garcia" autocomplete="username" required></div>
+      <div class="input-group" style="text-align:left"><label for="r_nombreCompleto">Nombre completo *</label><input type="text" id="r_nombreCompleto" placeholder="Juan García Pérez" autocomplete="name" required></div>
+      <div class="input-group" style="text-align:left"><label for="r_email">Email *</label><input type="email" id="r_email" placeholder="correo@ejemplo.com" autocomplete="email" required></div>
+      <div class="input-group" style="text-align:left"><label for="r_cedula">Cédula *</label><input type="text" id="r_cedula" placeholder="Ej: 1144024680" required></div>
+      <div class="input-group" style="text-align:left"><label for="r_telefono">Teléfono</label><input type="text" id="r_telefono" placeholder="3001234567" autocomplete="tel"></div>
+      <div class="input-group" style="text-align:left"><label for="r_direccion">Dirección</label><input type="text" id="r_direccion" placeholder="Cra 5 # 10-20, Cali" autocomplete="street-address"></div>
+      <div class="input-group" style="text-align:left"><label for="r_fechaNac">Fecha de nacimiento</label><input type="date" id="r_fechaNac" autocomplete="bday"></div>
+      <div class="input-group" style="text-align:left"><label for="r_password">Contraseña *</label><input type="password" id="r_password" placeholder="Mínimo 6 caracteres" autocomplete="new-password" required minlength="6"></div>
+      <div class="input-group" style="text-align:left"><label for="r_password2">Confirmar contraseña *</label><input type="password" id="r_password2" placeholder="Repite la contraseña" autocomplete="new-password" required></div>
       <button type="submit" class="btn btn-primary w-full" style="padding:12px;margin-top:8px;font-size:14px">Crear Cuenta</button>
       <p id="registerError" style="font-size:12px;color:var(--c-red);margin-top:10px;display:none"></p>
     </form>
